@@ -14,7 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const { one, run, all } = require('../db');
+const { one, run, all, runNoPersist, persist } = require('../db');
 const { refreshAll } = require('../db/refresh');
 
 router.get('/status', (req, res) => {
@@ -97,52 +97,128 @@ async function syncOcrm(setting) {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Sales API — sales + collections
-// TODO: map to your Sales Report API's actual response shape.
+// Sales API — Testbook Redash query 22259 (transactions feed)
+//
+// Source: https://data.testbook.com/api/queries/22259/results.json
+// Auth: Redash uses ?api_key=... in the URL (NOT a Bearer header)
+// Response shape: { query_result: { data: { rows: [ {...}, ... ] } } }
+//
+// Each row's relevant columns (from the query's column list):
+//   TxnId, sid, AgentEmpId, Agent, AgentEmail, Team, goalId, product,
+//   Amount, netAmount, paidAmount, refund, TxnOn, paymentMethod,
+//   paymentMode, status, Student, mobile, email
 // ────────────────────────────────────────────────────────────────
 async function syncSalesApi(setting) {
   const extra = JSON.parse(setting.extra_config || '{}');
 
-  const resp = await axios.get(`${setting.base_url}/orders`, {
-    headers: { Authorization: `Bearer ${setting.api_key}` },
-    params: { since: extra.last_sync || '2026-06-01' },
-    timeout: 30000,
-  });
+  // Redash: API key goes in the query string, not a header
+  const url = setting.base_url.includes('api_key=')
+    ? setting.base_url
+    : `${setting.base_url}${setting.base_url.includes('?') ? '&' : '?'}api_key=${setting.api_key}`;
 
-  const orders = resp.data.orders || resp.data || [];
+  const resp = await axios.get(url, { timeout: 60000 });
+
+  // Redash results.json shape
+  const rows = resp.data?.query_result?.data?.rows
+    || resp.data?.rows
+    || resp.data
+    || [];
+
   let upserted = 0;
-  for (const o of orders) {
-    run(`
+  let bdsCreated = 0;
+  let leadsCreated = 0;
+  const seenBds = new Set();
+  const seenLeads = new Set();
+
+  for (const r of rows) {
+    // ── 1. Ensure a BD record exists for this agent ──
+    const bdId = r.AgentEmpId ? `bd_${String(r.AgentEmpId).trim()}` : null;
+    if (bdId && !seenBds.has(bdId)) {
+      seenBds.add(bdId);
+      const exists = one(`SELECT bd_id FROM bds WHERE bd_id=?`, [bdId]);
+      if (!exists) {
+        runNoPersist(`
+          INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
+          VALUES (?, ?, NULL, ?, date('now'), 'Active', 0, 0)
+          ON CONFLICT(bd_id) DO NOTHING
+        `, [bdId, r.Agent || bdId, r.Team ? `team_${r.Team}` : null]);
+        bdsCreated++;
+      }
+    }
+
+    // ── 2. Ensure a lead record exists for this student ──
+    const leadId = r.sid ? `lead_${String(r.sid).trim()}` : (r.mobile ? `lead_m${r.mobile}` : null);
+    if (leadId && !seenLeads.has(leadId)) {
+      seenLeads.add(leadId);
+      const exists = one(`SELECT lead_id FROM leads WHERE lead_id=?`, [leadId]);
+      if (!exists) {
+        runNoPersist(`
+          INSERT INTO leads (lead_id, phone_normalized, crm_id, email, name, source, campaign_id, state, category, assigned_bd_id, assigned_date, status, temperature, last_call_date, last_crm_update, created_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(lead_id) DO NOTHING
+        `, [
+          leadId, r.mobile || null, String(r.sid || ''), r.email || null, r.Student || null,
+          r.source || 'Unknown', null, null, 'Fresh', bdId, r.signUpDate || r.TxnOn || new Date().toISOString(),
+          'Converted', 'Warm', r.TxnOn || null, r.TxnOn || null, r.signUpDate || r.TxnOn || new Date().toISOString(),
+        ]);
+        leadsCreated++;
+      }
+    }
+
+    // ── 3. Map the transaction into `sales` ──
+    const orderId = r.TxnId ? `txn_${r.TxnId}` : null;
+    if (!orderId) continue; // skip rows with no transaction id
+
+    const gross = parseFloat(r.Amount) || 0;
+    const net = r.netAmount !== undefined && r.netAmount !== null ? parseFloat(r.netAmount) : gross;
+    const waiver = Math.max(0, gross - net);
+    const refundAmt = parseFloat(r.refund) || 0;
+
+    let status = 'Confirmed';
+    if (refundAmt > 0 || (r.status && /refund/i.test(r.status))) status = 'Refunded';
+    else if (r.status && /hold|pending/i.test(r.status)) status = 'On Hold';
+
+    let paymentType = 'Full';
+    const pm = (r.paymentMethod || r.paymentMode || '').toLowerCase();
+    if (pm.includes('emi')) paymentType = 'EMI';
+    else if (pm.includes('partial')) paymentType = 'Partial';
+
+    runNoPersist(`
       INSERT INTO sales (order_id, lead_id, bd_id, course_id, gross_amount, waiver_amount, net_amount, sale_date, payment_type, status)
       VALUES (?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET
         gross_amount=excluded.gross_amount, waiver_amount=excluded.waiver_amount,
-        net_amount=excluded.net_amount, status=excluded.status
+        net_amount=excluded.net_amount, status=excluded.status,
+        payment_type=excluded.payment_type
     `, [
-      o.order_id, o.lead_id, o.bd_id, o.course_id,
-      o.gross_amount, o.waiver_amount || 0, o.net_amount ?? (o.gross_amount - (o.waiver_amount || 0)),
-      o.sale_date, o.payment_type || 'Full', o.status || 'Confirmed',
+      orderId, leadId, bdId, r.goalId ? String(r.goalId) : (r.product || null),
+      gross, waiver, net,
+      r.TxnOn || r.date || new Date().toISOString(),
+      paymentType, status,
     ]);
     upserted++;
 
-    // also upsert a collections row if the API includes payment schedule
-    if (o.amount_due !== undefined) {
-      run(`
-        INSERT INTO collections (collection_id, order_id, amount_due, amount_collected, due_date, payment_date, status)
-        VALUES (?,?,?,?,?,?,?)
-        ON CONFLICT(collection_id) DO UPDATE SET
-          amount_collected=excluded.amount_collected, status=excluded.status, payment_date=excluded.payment_date
-      `, [
-        `coll_${o.order_id}`, o.order_id, o.amount_due, o.amount_collected || 0,
-        o.due_date, o.payment_date || null, o.collection_status || 'Overdue',
-      ]);
-    }
+    // ── 4. Collections row (paidAmount vs netAmount) ──
+    const paid = parseFloat(r.paidAmount) || 0;
+    runNoPersist(`
+      INSERT INTO collections (collection_id, order_id, amount_due, amount_collected, due_date, payment_date, status)
+      VALUES (?,?,?,?,?,?,?)
+      ON CONFLICT(collection_id) DO UPDATE SET
+        amount_collected=excluded.amount_collected, status=excluded.status, payment_date=excluded.payment_date
+    `, [
+      `coll_${orderId}`, orderId, net, paid,
+      (r.TxnOn || r.date || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+      paid >= net ? (r.TxnOn || r.date || '').slice(0, 10) : null,
+      paid >= net ? 'Paid' : (paid > 0 ? 'Partial' : 'Overdue'),
+    ]);
   }
 
-  const newExtra = { ...extra, last_sync: new Date().toISOString() };
+  persist();
+
+  const newExtra = { ...extra, last_sync: new Date().toISOString(), last_row_count: rows.length };
   run(`UPDATE api_settings SET extra_config=? WHERE connector_key='sales_api'`, [JSON.stringify(newExtra)]);
 
-  return { orders_upserted: upserted };
+  return { rows_received: rows.length, transactions_upserted: upserted, bds_created: bdsCreated, leads_created: leadsCreated };
 }
 
 // ────────────────────────────────────────────────────────────────
