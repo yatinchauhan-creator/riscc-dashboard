@@ -301,7 +301,7 @@ table.t tr:hover .td-action{opacity:1}
     </div>
     <div class="cop-msgs" id="cop-msgs">
       <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> At current pace, will we hit target?</div>
-      <div class="cmsg cmsg-a"><strong>RISCC —</strong> No — forecast ₹2.61Cr vs ₹2.80Cr target (₹19L gap). Run rate ₹9.6L/day needs to reach ₹15.8L/day. Closable if 163 leads reallocated today + 34 overdue hot leads actioned by week end. Note: 3 BDs had no calls logged yesterday — data may be incomplete. Want me to model the reallocation scenario?</div>
+      <div class="cmsg cmsg-a"><strong>SID —</strong> No — forecast ₹2.61Cr vs ₹2.80Cr target (₹19L gap). Run rate ₹9.6L/day needs to reach ₹15.8L/day. Closable if 163 leads reallocated today + 34 overdue hot leads actioned by week end. Note: 3 BDs had no calls logged yesterday — data may be incomplete. Want me to model the reallocation scenario?</div>
     </div>
     <div class="cop-foot">
       <input type="text" id="cop-in" placeholder="Ask anything — ⌘K…"/>
@@ -318,7 +318,7 @@ let curPage='exec', charts={}, ribbonOpen=true;
 // ── API base — same origin (backend serves this file from /public) ──
 const API_BASE = '/api';
 function adminHeaders(){
-  const token = localStorage.getItem('riscc_admin_token');
+  const token = localStorage.getItem('SID_admin_token');
   return token ? {'Authorization': 'Bearer '+token} : {};
 }
 async function api(path){
@@ -374,13 +374,13 @@ async function sendCop(){
   const msgs=document.getElementById('cop-msgs');
   msgs.innerHTML+=`<div class="cmsg cmsg-u" style="margin-top:8px"><span style="color:var(--muted)">You —</span> ${q}</div>`;
   const thinkingId = 'think-'+Math.random().toString(36).slice(2);
-  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>RISCC —</strong> Thinking…</div>`;
+  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>SID —</strong> Thinking…</div>`;
   msgs.scrollTop=msgs.scrollHeight;inp.value='';
   const result = await apiPost('/copilot', {question:q});
   const el = document.getElementById(thinkingId);
   if(el){
     el.style.color=''; el.style.fontStyle='';
-    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+    el.innerHTML = `<strong>SID —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -799,7 +799,7 @@ ${[['PK','#DCFCE7','#166534','Priya K.','14.1%','92h MTD','88%','10.5%','Top per
   </div>
   <div id="cop-msgs-full" style="padding:14px;min-height:120px;max-height:240px;overflow-y:auto">
     <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> Why did our CVR drop this week?</div>
-    <div class="cmsg cmsg-a"><strong>RISCC —</strong> Real CVR dropped from 11.8% to 9.4% — a 20.3% decline. Three causes: (1) Rahul S. + Varun T. contributed only 2 sales this week vs 5 last. (2) WhatsApp leads (3.1% CVR) grew from 14% to 22% of this week's assignment. (3) FU compliance fell to 54%, sending 34 hot leads cold. Removing those two BDs, team CVR is 11.1% — essentially flat. Want a source-level breakdown?</div>
+    <div class="cmsg cmsg-a"><strong>SID —</strong> Real CVR dropped from 11.8% to 9.4% — a 20.3% decline. Three causes: (1) Rahul S. + Varun T. contributed only 2 sales this week vs 5 last. (2) WhatsApp leads (3.1% CVR) grew from 14% to 22% of this week's assignment. (3) FU compliance fell to 54%, sending 34 hot leads cold. Removing those two BDs, team CVR is 11.1% — essentially flat. Want a source-level breakdown?</div>
   </div>
   <div style="display:flex;gap:8px;padding:10px;border-top:0.5px solid var(--border)">
     <input type="text" id="cop-in-full" placeholder="Ask anything — 'Who are top 5 BDs?', 'Forecast at 10% CVR?', 'Which leads to reassign?'…" style="flex:1;font-size:12px;padding:8px 12px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg);color:var(--text)"/>
@@ -1061,7 +1061,7 @@ ${[['Triggered','Uncontacted rate >35%','Rahul S. (47%) + Varun T. (41%) both tr
   <div style="display:flex;gap:10px;align-items:flex-start">
     <i class="ti ti-shield-lock" style="font-size:18px;color:var(--gold);flex-shrink:0;margin-top:2px"></i>
     <div style="font-size:12px;color:var(--text);line-height:1.6">
-      <strong>How this works:</strong> keys you enter below are sent once to your backend and stored in <code>db/riscc.sqlite</code> (table <code>api_settings</code>).
+      <strong>How this works:</strong> keys you enter below are sent once to your backend and stored in <code>db/SID.sqlite</code> (table <code>api_settings</code>).
       They are never written into this HTML/JS file and never sent back to the browser in full — only a masked preview (e.g. <code>sk-a••••••••wXyz</code>) is shown.
       You can deploy this HTML publicly without exposing credentials, as long as your backend itself is not publicly readable (keep <code>/api/settings</code> behind <code>ADMIN_TOKEN</code> — see README).
     </div>
@@ -1341,13 +1341,13 @@ async function sendCopFull(){
   const msgs=document.getElementById('cop-msgs-full');
   msgs.innerHTML+=`<div class="cmsg cmsg-u" style="margin-top:8px"><span style="color:var(--muted)">You —</span> ${q}</div>`;
   const thinkingId = 'thinkf-'+Math.random().toString(36).slice(2);
-  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>RISCC —</strong> Thinking…</div>`;
+  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>SID —</strong> Thinking…</div>`;
   msgs.scrollTop=msgs.scrollHeight;inp.value='';
   const result = await apiPost('/copilot', {question:q});
   const el = document.getElementById(thinkingId);
   if(el){
     el.style.color=''; el.style.fontStyle='';
-    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+    el.innerHTML = `<strong>SID —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -1755,14 +1755,14 @@ async function loadUncalled(){
 // ── NEW: Settings / API Keys ─────────────────────────────────────
 function saveAdminToken(){
   const val = document.getElementById('admin-token-input')?.value || '';
-  if(val) localStorage.setItem('riscc_admin_token', val);
-  else localStorage.removeItem('riscc_admin_token');
+  if(val) localStorage.setItem('SID_admin_token', val);
+  else localStorage.removeItem('SID_admin_token');
   loadSettings();
 }
 
 async function loadSettings(){
   const tokenInput = document.getElementById('admin-token-input');
-  if(tokenInput) tokenInput.value = localStorage.getItem('riscc_admin_token') || '';
+  if(tokenInput) tokenInput.value = localStorage.getItem('SID_admin_token') || '';
 
   const settings = await api('/settings');
   const container = document.getElementById('settings-cards');
