@@ -1,179 +1,111 @@
--- ════════════════════════════════════════════════════════════════
--- RISCC Database Schema — Doc 5 of 6
--- 7 core tables. SQLite dialect (works identically in Postgres/MySQL
--- with minor type tweaks — see notes at bottom of file).
--- ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// db/refresh.js — recomputes the "materialized" tables:
+//   - bd_daily_calls   (day-wise calls per BD)
+//   - uncalled_leads   (per-lead age bucket + day-wise uncalled flags)
+//   - v_bd_daily_summary, v_manipulation_scores, v_source_performance,
+//     v_forecast_inputs, v_followup_status are computed on-the-fly
+//     in routes/*.js (cheap enough at this data volume).
+//
+// In production, call refreshAll() on a 15-min cron (see server.js).
+// ════════════════════════════════════════════════════════════════
+const { all, run, runNoPersist, persist } = require('./index');
 
-CREATE TABLE bds (
-  bd_id VARCHAR(50) PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  team_leader_id VARCHAR(50),
-  team_id VARCHAR(50),
-  join_date DATE,
-  status VARCHAR(20) DEFAULT 'Active',         -- ENUM Active/Inactive
-  monthly_target_revenue DECIMAL(12,2),
-  monthly_target_sales INT
-);
+const TODAY = '2026-06-11'; // matches dashboard's "current date"
 
-CREATE TABLE team_leaders (
-  tl_id VARCHAR(50) PRIMARY KEY,
-  name VARCHAR(100) NOT NULL
-);
+function refreshBdDailyCalls() {
+  run('DELETE FROM bd_daily_calls');
 
-CREATE TABLE campaigns (
-  campaign_id VARCHAR(50) PRIMARY KEY,
-  name VARCHAR(100),
-  source VARCHAR(50) NOT NULL,                 -- Facebook/Google/Organic/WhatsApp/YouTube/Referral
-  spend DECIMAL(12,2) DEFAULT 0,
-  start_date DATE,
-  end_date DATE,
-  leads_generated INT DEFAULT 0
-);
+  const rows = all(`
+    SELECT
+      bd_id,
+      DATE(call_timestamp) AS call_date,
+      COUNT(*) AS total_calls,
+      SUM(CASE WHEN duration_seconds > 30 THEN 1 ELSE 0 END) AS connected_calls,
+      SUM(CASE WHEN duration_seconds = 0 THEN 1 ELSE 0 END) AS zero_sec_calls,
+      SUM(duration_seconds) AS talktime_seconds,
+      COUNT(DISTINCT lead_id) AS unique_leads_called
+    FROM calls
+    GROUP BY bd_id, DATE(call_timestamp)
+  `);
 
-CREATE TABLE leads (
-  lead_id VARCHAR(50) PRIMARY KEY,
-  phone_normalized VARCHAR(15),
-  crm_id VARCHAR(50),
-  email VARCHAR(100),
-  name VARCHAR(100),
-  source VARCHAR(50),
-  campaign_id VARCHAR(50) REFERENCES campaigns(campaign_id),
-  state VARCHAR(50),
-  category VARCHAR(50),                        -- Fresh/Repeat/Referral
-  assigned_bd_id VARCHAR(50) REFERENCES bds(bd_id),
-  assigned_date DATETIME,
-  status VARCHAR(20) DEFAULT 'Open',           -- Open/Interested/Proposal/Converted/Lost
-  temperature VARCHAR(10) DEFAULT 'Cold',      -- Hot/Warm/Cold
-  last_call_date DATETIME,
-  last_crm_update DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_leads_phone ON leads(phone_normalized);
-CREATE INDEX idx_leads_created ON leads(created_at);
+  for (const r of rows) {
+    runNoPersist(
+      `INSERT INTO bd_daily_calls (bd_id, call_date, total_calls, connected_calls, zero_sec_calls, talktime_seconds, unique_leads_called)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [r.bd_id, r.call_date, r.total_calls, r.connected_calls, r.zero_sec_calls, r.talktime_seconds, r.unique_leads_called]
+    );
+  }
+  persist();
+  console.log(`[refresh] bd_daily_calls: ${rows.length} rows`);
+  return rows.length;
+}
 
-CREATE TABLE calls (
-  call_id VARCHAR(50) PRIMARY KEY,
-  lead_id VARCHAR(50) REFERENCES leads(lead_id),
-  bd_id VARCHAR(50) REFERENCES bds(bd_id),
-  call_timestamp DATETIME NOT NULL,
-  duration_seconds INT DEFAULT 0,              -- 0 = not connected; >30 = connected
-  outcome VARCHAR(50),                         -- Connected/Not Connected/Busy/No Answer
-  recording_url TEXT,
-  crm_logged BOOLEAN DEFAULT 0,
-  crm_log_time DATETIME
-);
-CREATE INDEX idx_calls_lead ON calls(lead_id);
-CREATE INDEX idx_calls_bd ON calls(bd_id);
-CREATE INDEX idx_calls_ts ON calls(call_timestamp);
-CREATE INDEX idx_calls_crmlog ON calls(crm_log_time);
+function daysBetween(dateStr, todayStr) {
+  const d1 = new Date(dateStr + (dateStr.includes('T') || dateStr.includes(' ') ? '' : 'T00:00:00') + 'Z');
+  const d2 = new Date(todayStr + 'T00:00:00Z');
+  return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+}
 
-CREATE TABLE sales (
-  order_id VARCHAR(50) PRIMARY KEY,
-  lead_id VARCHAR(50) REFERENCES leads(lead_id),
-  bd_id VARCHAR(50) REFERENCES bds(bd_id),
-  course_id VARCHAR(50),
-  gross_amount DECIMAL(12,2) NOT NULL,
-  waiver_amount DECIMAL(12,2) DEFAULT 0,
-  net_amount DECIMAL(12,2) NOT NULL,           -- gross - waiver
-  sale_date DATETIME NOT NULL,
-  payment_type VARCHAR(20),                    -- Full/EMI/Partial
-  status VARCHAR(20) DEFAULT 'Confirmed'       -- Confirmed/Refunded/On Hold
-);
-CREATE INDEX idx_sales_date ON sales(sale_date);
-CREATE INDEX idx_sales_status ON sales(status);
+function bucketFor(days) {
+  if (days === null) return '15+d'; // never called = treat as fully stale
+  if (days <= 1) return '0-1d';
+  if (days <= 3) return '2-3d';
+  if (days <= 7) return '4-7d';
+  if (days <= 15) return '8-15d';
+  return '15+d';
+}
 
-CREATE TABLE followups (
-  followup_id VARCHAR(50) PRIMARY KEY,
-  lead_id VARCHAR(50) REFERENCES leads(lead_id),
-  bd_id VARCHAR(50) REFERENCES bds(bd_id),
-  scheduled_date DATETIME NOT NULL,
-  actual_followup_date DATETIME,
-  gap_hours DECIMAL(6,1),
-  status VARCHAR(20) DEFAULT 'Pending'          -- Pending/Done/Missed
-);
-CREATE INDEX idx_fu_scheduled ON followups(scheduled_date);
+function refreshUncalledLeads() {
+  run('DELETE FROM uncalled_leads');
 
-CREATE TABLE collections (
-  collection_id VARCHAR(50) PRIMARY KEY,
-  order_id VARCHAR(50) REFERENCES sales(order_id),
-  amount_due DECIMAL(12,2) NOT NULL,
-  amount_collected DECIMAL(12,2) DEFAULT 0,
-  due_date DATE NOT NULL,
-  payment_date DATE,
-  status VARCHAR(20) DEFAULT 'Overdue'          -- Paid/Overdue/Partial/Defaulted
-);
-CREATE INDEX idx_coll_due ON collections(due_date);
-CREATE INDEX idx_coll_status ON collections(status);
+  // For each lead not Converted/Lost, get last_call_date and assigned_date
+  const leads = all(`
+    SELECT lead_id, assigned_bd_id, assigned_date, last_call_date, status
+    FROM leads
+    WHERE status NOT IN ('Converted','Lost')
+  `);
 
--- ════════════════════════════════════════════════════════════════
--- CONFIG TABLE — for things like revenue target, dates etc.
--- (not in original Doc 5 but needed for forecast engine)
--- ════════════════════════════════════════════════════════════════
-CREATE TABLE config (
-  key VARCHAR(50) PRIMARY KEY,
-  value VARCHAR(200)
-);
+  // Get all call dates per lead (for daywise flags over last 15 days)
+  const callDatesByLead = {};
+  const callRows = all(`SELECT lead_id, DATE(call_timestamp) AS d FROM calls WHERE duration_seconds > 30`);
+  for (const r of callRows) {
+    if (!callDatesByLead[r.lead_id]) callDatesByLead[r.lead_id] = new Set();
+    callDatesByLead[r.lead_id].add(r.d);
+  }
 
--- ════════════════════════════════════════════════════════════════
--- API KEYS / CONNECTOR SETTINGS TABLE
--- Stores OCRM/Sales API/Sheets/Claude keys SERVER-SIDE only.
--- The frontend never sees these values — only a masked preview
--- (e.g. "sk-ant-...xyz9") via GET, and POST to update.
--- ════════════════════════════════════════════════════════════════
-CREATE TABLE api_settings (
-  connector_key VARCHAR(50) PRIMARY KEY,   -- e.g. 'ocrm', 'sales_api', 'claude', 'gsheets'
-  label VARCHAR(100),                       -- display name
-  base_url VARCHAR(300),
-  api_key VARCHAR(500),                     -- stored as-is server-side (encrypt at rest in prod)
-  extra_config TEXT,                        -- JSON blob for connector-specific fields
-  enabled BOOLEAN DEFAULT 0,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+  let inserted = 0;
+  for (const l of leads) {
+    const refDate = l.last_call_date ? l.last_call_date.slice(0, 10) : null;
+    const daysSince = refDate ? daysBetween(refDate, TODAY) : daysBetween(l.assigned_date.slice(0, 10), TODAY);
+    const bucket = l.last_call_date ? bucketFor(daysSince) : bucketFor(null);
 
--- ════════════════════════════════════════════════════════════════
--- NEW: v_bd_daily_calls (materialized as real table, refreshed by cron)
--- Day-wise call activity per BD — powers the "Productivity" heatmap
--- and a new "Day-wise calls" table.
--- ════════════════════════════════════════════════════════════════
-CREATE TABLE bd_daily_calls (
-  bd_id VARCHAR(50),
-  call_date DATE,
-  total_calls INT DEFAULT 0,
-  connected_calls INT DEFAULT 0,           -- duration_seconds > 30
-  zero_sec_calls INT DEFAULT 0,            -- duration_seconds = 0
-  talktime_seconds INT DEFAULT 0,
-  unique_leads_called INT DEFAULT 0,
-  PRIMARY KEY (bd_id, call_date)
-);
-CREATE INDEX idx_bdc_date ON bd_daily_calls(call_date);
+    // Build 15-char daywise flag string: day0 = today, day14 = 14 days ago
+    // 1 = uncalled (no connected call that day), 0 = called that day
+    const calledDates = callDatesByLead[l.lead_id] || new Set();
+    let flags = '';
+    for (let d = 0; d < 15; d++) {
+      const dt = new Date(TODAY + 'T00:00:00Z');
+      dt.setUTCDate(dt.getUTCDate() - d);
+      const dStr = dt.toISOString().slice(0, 10);
+      flags += calledDates.has(dStr) ? '0' : '1';
+    }
 
--- ════════════════════════════════════════════════════════════════
--- NEW: v_uncalled_leads (materialized as real table, refreshed by cron)
--- Per lead: age bucket + last_call_date + per-day uncalled flag for
--- the last 15 days. Powers "Uncalled Leads" page with bucket view
--- (0-1d / 2-3d / 4-7d / 8-15d / 15+d) and a day-wise grid showing
--- which of the last N days the lead went uncalled.
--- ════════════════════════════════════════════════════════════════
-CREATE TABLE uncalled_leads (
-  lead_id VARCHAR(50) PRIMARY KEY,
-  assigned_bd_id VARCHAR(50),
-  last_call_date DATETIME,                  -- NULL = never called
-  days_since_last_call INT,                 -- NULL if never called -> treated as assigned-age
-  age_bucket VARCHAR(10),                    -- '0-1d','2-3d','4-7d','8-15d','15+d'
-  daywise_flags VARCHAR(20)                  -- 15-char string of 0/1, 1 = uncalled that day (day0=today)
-);
-CREATE INDEX idx_uncalled_bucket ON uncalled_leads(age_bucket);
-CREATE INDEX idx_uncalled_bd ON uncalled_leads(assigned_bd_id);
+    runNoPersist(
+      `INSERT INTO uncalled_leads (lead_id, assigned_bd_id, last_call_date, days_since_last_call, age_bucket, daywise_flags)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [l.lead_id, l.assigned_bd_id, l.last_call_date, l.last_call_date ? daysSince : null, bucket, flags]
+    );
+    inserted++;
+  }
+  persist();
+  console.log(`[refresh] uncalled_leads: ${inserted} rows`);
+  return inserted;
+}
 
--- ════════════════════════════════════════════════════════════════
--- NOTES FOR POSTGRES / MYSQL MIGRATION
--- ════════════════════════════════════════════════════════════════
--- 1. Replace AUTOINCREMENT-less VARCHAR PKs as-is (they're app-generated IDs from OCRM).
--- 2. SQLite has no native BOOLEAN — it's stored as 0/1 INTEGER, same in MySQL.
---    In Postgres, change `BOOLEAN DEFAULT 0` -> `BOOLEAN DEFAULT FALSE`.
--- 3. DATETIME -> TIMESTAMP in Postgres.
--- 4. DECIMAL(12,2) works in both Postgres and MySQL unchanged.
--- 5. Materialized views (v_bd_daily_summary etc.) are implemented as
---    on-the-fly SQL queries in routes/*.js for portability. In Postgres
---    you can convert these into real `CREATE MATERIALIZED VIEW ... ` 
---    with `REFRESH MATERIALIZED VIEW` on a 15-min cron (see server.js).
+function refreshAll() {
+  const a = refreshBdDailyCalls();
+  const b = refreshUncalledLeads();
+  return { bd_daily_calls: a, uncalled_leads: b, refreshed_at: new Date().toISOString() };
+}
+
+module.exports = { refreshAll, refreshBdDailyCalls, refreshUncalledLeads, TODAY };
