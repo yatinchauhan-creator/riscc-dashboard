@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RISCC — Revenue Intelligence & Sales Command Center</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Inter',sans-serif;background:#F4F6FA;color:#111827;font-size:13px}
+:root{
+  --primary:#1A3C6B;--accent:#C0392B;--gold:#D4A017;--mid:#2E5FA3;
+  --success:#16A34A;--warning:#D97706;--bg:#F4F6FA;--card:#FFFFFF;
+  --text:#111827;--muted:#6B7280;--border:#E5E7EB;--hover:#F9FAFB;
+  --purple:#7C3AED;--sidebar:240px;--topbar:52px;
+}
+.shell{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:var(--sidebar);background:var(--primary);flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto}
+.sidebar-logo{padding:16px 18px 14px;border-bottom:0.5px solid rgba(255,255,255,.1)}
+.logo-name{font-size:14px;font-weight:700;color:#fff;letter-spacing:.01em}
+.logo-sub{font-size:10px;color:rgba(255,255,255,.5);margin-top:2px}
+.nav-group{padding:10px 0}
+.nav-group-label{font-size:9px;font-weight:600;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase;padding:4px 18px 6px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 18px;cursor:pointer;color:rgba(255,255,255,.65);font-size:12px;transition:all .15s;border-left:2px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-item.on{background:rgba(255,255,255,.12);color:#fff;border-left-color:var(--gold)}
+.nav-item i{font-size:13px;flex-shrink:0}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:var(--topbar);background:var(--card);border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 20px;flex-shrink:0;flex-wrap:wrap}
+.topbar-title{font-size:15px;font-weight:600;color:var(--text);flex:1}
+.filter-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:100px;border:0.5px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer}
+.filter-chip.active{background:#EEF2FF;border-color:#A5B4FC;color:var(--primary)}
+.filter-chip i{font-size:10px}
+.topbar-sep{width:0.5px;height:20px;background:var(--border);flex-shrink:0}
+.topbar-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:14px;background:transparent;border:none;transition:background .15s}
+.topbar-icon:hover{background:var(--bg)}
+.notif-dot{width:7px;height:7px;background:var(--accent);border-radius:50%;position:absolute;top:5px;right:5px}
+
+.content-wrap{flex:1;display:flex;overflow:hidden}
+.content{flex:1;overflow-y:auto;padding:20px;min-width:0}
+.ai-ribbon{width:300px;flex-shrink:0;background:var(--card);border-left:0.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.ribbon-hdr{padding:12px 14px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.ribbon-title{font-size:12px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
+.ribbon-toggle{font-size:10px;color:var(--muted);cursor:pointer;border:none;background:none}
+.ribbon-body{flex:1;overflow-y:auto;padding:10px 12px}
+.ribbon-collapsed .ribbon-body{display:none}
+.ribbon-collapsed{width:36px}
+.ribbon-collapsed .ribbon-hdr{padding:10px 6px;justify-content:center;writing-mode:vertical-rl;flex-direction:row}
+.ribbon-collapsed .ribbon-title span{display:none}
+.ribbon-collapsed .ribbon-toggle{display:none}
+
+.filters-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;padding:10px 14px;background:var(--card);border-radius:10px;border:0.5px solid var(--border)}
+.filter-group{display:flex;align-items:center;gap:5px}
+.filter-label{font-size:11px;color:var(--muted);font-weight:500}
+select.fsel{font-size:11px;padding:4px 8px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer}
+.filter-reset{font-size:11px;color:var(--accent);cursor:pointer;border:none;background:none;font-weight:500;margin-left:auto}
+
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px}
+.kcard{background:var(--card);border-radius:12px;border:0.5px solid var(--border);padding:16px;position:relative;overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.kcard:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.kcard-bar{position:absolute;top:0;left:0;right:0;height:3px}
+.kcard-bar.g{background:var(--success)}
+.kcard-bar.y{background:var(--warning)}
+.kcard-bar.r{background:var(--accent)}
+.kcard-label{font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px}
+.kcard-val{font-size:30px;font-weight:700;color:var(--text);line-height:1}
+.kcard-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.kcard-delta{font-size:11px;font-weight:500}
+.kcard-delta.up{color:var(--success)}.kcard-delta.dn{color:var(--accent)}.kcard-delta.nt{color:var(--muted)}
+.sparkline{width:60px;height:24px;flex-shrink:0}
+
+.card{background:var(--card);border-radius:10px;border:0.5px solid var(--border);padding:14px 16px;margin-bottom:14px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px}
+.card-title{font-size:14px;font-weight:600;color:var(--text)}
+.card-sub{font-size:11px;color:var(--muted)}
+.card-actions{display:flex;align-items:center;gap:6px}
+.btn-sm{font-size:11px;padding:4px 10px;border-radius:6px;border:0.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+.btn-sm:hover{background:var(--bg)}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover{background:#16315A}
+.tw{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse}
+table.t th{font-size:13px;font-weight:600;color:var(--muted);text-align:left;padding:7px 10px;border-bottom:0.5px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+table.t th:hover{color:var(--text)}
+table.t td{padding:7px 10px;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--text);vertical-align:middle}
+table.t tr:nth-child(even) td{background:#F9FAFB}
+table.t tr:last-child td{border-bottom:none}
+table.t tr:hover td{background:#F0F4FF}
+.td-action{display:flex;gap:4px;opacity:0;transition:opacity .15s}
+table.t tr:hover .td-action{opacity:1}
+
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;white-space:nowrap;display:inline-block}
+.b-p0{background:#FEE2E2;color:var(--accent)}
+.b-p1{background:#FEF3C7;color:var(--warning)}
+.b-p2{background:#DBEAFE;color:var(--mid)}
+.b-ok{background:#DCFCE7;color:var(--success)}
+.b-warn{background:#FEF3C7;color:var(--warning)}
+.b-bad{background:#FEE2E2;color:var(--accent)}
+.b-manip{background:#EDE9FE;color:var(--purple)}
+.b-muted{background:var(--bg);color:var(--muted);border:0.5px solid var(--border)}
+.ku{color:var(--success);font-weight:500}.kd{color:var(--accent);font-weight:500}.kw{color:var(--warning);font-weight:500}
+
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.cw{position:relative;width:100%;height:180px}
+
+.ins-card{background:var(--bg);border-radius:8px;border:0.5px solid var(--border);padding:10px;margin-bottom:8px;cursor:pointer;transition:border-color .15s}
+.ins-card:hover{border-color:var(--gold)}
+.ins-title{font-size:11px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:5px}
+.ins-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:5px}
+.ins-body{font-size:10px;color:var(--muted);line-height:1.5;display:none}
+.ins-card.open .ins-body{display:block}
+.ins-actions{display:flex;gap:5px;margin-top:7px}
+.ins-btn{font-size:10px;padding:3px 8px;border-radius:5px;border:0.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+.ins-btn.addressed{color:var(--success);border-color:var(--success)}
+
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:10px 0}
+.gauge-val{font-size:22px;font-weight:700;color:var(--text);margin-top:2px}
+.gauge-target{font-size:10px;color:var(--muted)}
+
+.heatmap-wrap{overflow-x:auto}
+.hm-cell{border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:rgba(255,255,255,.9)}
+.hm-label{font-size:9px;color:var(--muted);padding:2px 4px;display:flex;align-items:center}
+
+.cohort-wrap{overflow-x:auto}
+.cohort-grid{border-collapse:collapse}
+.cohort-grid th{font-size:10px;font-weight:600;color:var(--muted);padding:4px 8px;border:0.5px solid var(--border);white-space:nowrap;background:var(--bg)}
+.cohort-grid td{padding:5px 8px;border:0.5px solid var(--border);font-size:11px;font-weight:600;text-align:center;min-width:54px}
+
+.funnel-step{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.funnel-lbl{font-size:12px;color:var(--muted);min-width:160px}
+.funnel-bw{flex:1;height:22px;background:var(--bg);border-radius:4px;overflow:hidden;border:0.5px solid var(--border)}
+.funnel-bf{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px}
+.funnel-bf span{font-size:11px;font-weight:600;color:#fff}
+.funnel-pct{font-size:11px;color:var(--muted);min-width:40px;text-align:right}
+
+.cop-fixed{position:fixed;bottom:20px;right:20px;z-index:100}
+.cop-btn{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(26,60,107,.35)}
+.cop-panel{position:fixed;bottom:74px;right:20px;width:360px;background:var(--card);border-radius:14px;border:0.5px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.12);z-index:100;overflow:hidden;display:none}
+.cop-panel.open{display:flex;flex-direction:column}
+.cop-ph{padding:12px 14px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--primary)}
+.cop-ph-title{font-size:12px;font-weight:600;color:#fff;display:flex;align-items:center;gap:6px}
+.cop-ph-close{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:14px}
+.cop-msgs{padding:12px;max-height:260px;overflow-y:auto}
+.cmsg{margin-bottom:10px;font-size:12px;line-height:1.6}
+.cmsg-u{color:var(--muted)}
+.cmsg-a{color:var(--text)}
+.cmsg-a strong{color:var(--primary)}
+.cop-foot{display:flex;gap:8px;padding:10px;border-top:0.5px solid var(--border)}
+.cop-foot input{flex:1;font-size:12px;padding:7px 10px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg);color:var(--text)}
+.cop-foot button{font-size:12px;padding:7px 14px;border-radius:8px;border:none;background:var(--primary);color:#fff;cursor:pointer}
+
+.sbar-w{width:60px;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;display:inline-block}
+.sbar-f{height:100%;border-radius:3px}
+.sbar-cell{display:flex;align-items:center;gap:5px}
+
+.flow-step{display:flex;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)}
+.flow-step:last-child{border-bottom:none}
+.flow-num{width:22px;height:22px;border-radius:50%;background:var(--bg);border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--primary);flex-shrink:0;margin-top:1px}
+.flow-act{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px}
+.flow-out{font-size:11px;color:var(--muted)}
+
+.fbox{background:var(--bg);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);line-height:1.8;font-family:'JetBrains Mono',monospace;border:0.5px solid var(--border);margin-bottom:10px;white-space:pre-wrap}
+
+.tbl-card{background:var(--card);border:0.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.tbl-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid var(--border);background:var(--bg)}
+.tbl-name{font-size:13px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--primary)}
+.fr-row{display:flex;align-items:baseline;gap:8px;padding:5px 14px;border-bottom:0.5px solid var(--border);flex-wrap:wrap}
+.fr-row:last-child{border-bottom:none}
+.fr-name{font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace;color:var(--text);min-width:160px;flex-shrink:0}
+.fr-type{font-size:10px;color:var(--muted);min-width:90px;flex-shrink:0}
+.fr-desc{font-size:11px;color:var(--muted);flex:1}
+.tag-pk{background:#EDE9FE;color:var(--purple);font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px}
+.tag-fk{background:#DBEAFE;color:var(--mid);font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px}
+.tag-idx{background:#DCFCE7;color:var(--success);font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px}
+
+.view-card{background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.view-name{font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--primary);margin-bottom:4px}
+.view-sql{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);background:var(--bg);border-radius:6px;padding:8px 10px;line-height:1.7;margin-top:6px;border:0.5px solid var(--border);white-space:pre-wrap}
+
+.mrow{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--border)}
+.mrow:last-child{border-bottom:none}
+.ml{font-size:12px;color:var(--muted)}
+.mv{font-size:13px;font-weight:500}
+
+.cc{background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.cc-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.cc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cc-lbl{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+.cc-val{font-size:12px;color:var(--text);line-height:1.5}
+.cc-script{background:var(--bg);border-left:3px solid var(--purple);border-radius:0 8px 8px 0;padding:8px 10px;font-size:11px;color:var(--text);line-height:1.7;font-style:italic}
+.prog-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.prog-bar{flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;border:0.5px solid var(--border)}
+.prog-fill{height:100%;border-radius:3px}
+
+.sl{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px;margin-top:14px}
+.sl:first-child{margin-top:0}
+
+@media (max-width:1024px){
+  .ai-ribbon{display:none}
+  .sidebar{width:60px}
+  .sidebar .logo-sub,.sidebar .nav-group-label,.nav-item span{display:none}
+  .g2,.g3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+<!-- ── SIDEBAR ── -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-name">RISCC</div>
+    <div class="logo-sub">Revenue Intelligence · Nirnay IAS / Testbook</div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Executive</div>
+    <div class="nav-item on" onclick="nav(this,'exec','Command Center')"><i class="ti ti-layout-dashboard"></i> <span>Command Center</span></div>
+    <div class="nav-item" onclick="nav(this,'daily','Daily Review')"><i class="ti ti-sun"></i> <span>Daily Review</span></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Sales Ops</div>
+    <div class="nav-item" onclick="nav(this,'bd','BD Performance')"><i class="ti ti-users"></i> <span>BD Performance</span></div>
+    <div class="nav-item" onclick="nav(this,'tl','Team Leader')"><i class="ti ti-user-star"></i> <span>Team Leader</span></div>
+    <div class="nav-item" onclick="nav(this,'source','Source Analysis')"><i class="ti ti-chart-bar"></i> <span>Source Analysis</span></div>
+    <div class="nav-item" onclick="nav(this,'followup','Follow-Up Intel')"><i class="ti ti-phone-call"></i> <span>Follow-Up Intel</span></div>
+    <div class="nav-item" onclick="nav(this,'prod','Productivity')"><i class="ti ti-clock"></i> <span>Productivity</span></div>
+    <div class="nav-item" onclick="nav(this,'dailycalls','Day-wise Calls')"><i class="ti ti-calendar-stats"></i> <span>Day-wise Calls</span></div>
+    <div class="nav-item" onclick="nav(this,'leakage','Lead Leakage')"><i class="ti ti-alert-triangle"></i> <span>Lead Leakage</span></div>
+    <div class="nav-item" onclick="nav(this,'uncalled','Uncalled Leads')"><i class="ti ti-phone-off"></i> <span>Uncalled Leads</span></div>
+    <div class="nav-item" onclick="nav(this,'crm','CRM Discipline')"><i class="ti ti-database"></i> <span>CRM Discipline</span></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Revenue</div>
+    <div class="nav-item" onclick="nav(this,'rev','Revenue Intelligence')"><i class="ti ti-currency-rupee"></i> <span>Revenue Intel</span></div>
+    <div class="nav-item" onclick="nav(this,'col','Collections')"><i class="ti ti-receipt"></i> <span>Collections</span></div>
+    <div class="nav-item" onclick="nav(this,'funnel','Conversion Funnel')"><i class="ti ti-filter"></i> <span>Conversion Funnel</span></div>
+    <div class="nav-item" onclick="nav(this,'cohort','Cohort Analysis')"><i class="ti ti-grid-dots"></i> <span>Cohort Analysis</span></div>
+    <div class="nav-item" onclick="nav(this,'forecast','Forecast')"><i class="ti ti-trending-up"></i> <span>Forecast</span></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">AI Layer</div>
+    <div class="nav-item" onclick="nav(this,'ai','AI Insights')"><i class="ti ti-brain"></i> <span>AI Insights</span></div>
+    <div class="nav-item" onclick="nav(this,'coaching','AI Coaching')"><i class="ti ti-target"></i> <span>AI Coaching</span></div>
+    <div class="nav-item" onclick="nav(this,'cop','Executive Copilot')"><i class="ti ti-robot"></i> <span>Executive Copilot</span></div>
+    <div class="nav-item" onclick="nav(this,'alloc','Lead Allocation')"><i class="ti ti-arrows-shuffle"></i> <span>Lead Allocation</span></div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Intelligence</div>
+    <div class="nav-item" onclick="nav(this,'call','Call Quality')"><i class="ti ti-headphones"></i> <span>Call Quality</span></div>
+    <div class="nav-item" onclick="nav(this,'schema','Data Schema')"><i class="ti ti-sitemap"></i> <span>Data Schema</span></div>
+    <div class="nav-item" onclick="nav(this,'settings','Settings / API Keys')"><i class="ti ti-key"></i> <span>Settings / API Keys</span></div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Command Center</div>
+    <div class="filter-chip active"><i class="ti ti-calendar"></i> MTD Jun 2026</div>
+    <div class="filter-chip"><i class="ti ti-users"></i> All BDs</div>
+    <div class="filter-chip"><i class="ti ti-chart-pie"></i> All Sources</div>
+    <div class="topbar-sep"></div>
+    <select id="role-sel" onchange="setRole(this.value)" style="font-size:11px;padding:3px 8px;border-radius:100px;border:0.5px solid #C7D2FE;background:#EEF2FF;color:var(--primary);cursor:pointer">
+      <option value="admin">Admin / Founder</option>
+      <option value="cro">CRO / Rev Ops</option>
+      <option value="tl">Team Leader</option>
+      <option value="bd">BD</option>
+      <option value="analyst">Analyst</option>
+    </select>
+    <div style="position:relative">
+      <button class="topbar-icon"><i class="ti ti-bell"></i></button>
+      <div class="notif-dot"></div>
+    </div>
+    <button class="topbar-icon"><i class="ti ti-search"></i></button>
+    <div style="width:30px;height:30px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;cursor:pointer">CR</div>
+  </div>
+
+  <div class="content-wrap">
+    <div class="content" id="main-content"></div>
+
+    <div class="ai-ribbon" id="ribbon">
+      <div class="ribbon-hdr">
+        <div class="ribbon-title"><i class="ti ti-sparkles" style="color:var(--gold)"></i> <span>AI Insights (4)</span></div>
+        <button class="ribbon-toggle" onclick="toggleRibbon()">◀</button>
+      </div>
+      <div class="ribbon-body" id="ribbon-body"></div>
+    </div>
+  </div>
+</div>
+
+<div class="cop-fixed">
+  <div class="cop-panel" id="cop-panel">
+    <div class="cop-ph">
+      <div class="cop-ph-title"><i class="ti ti-robot"></i> Executive Copilot <span style="font-size:10px;opacity:.7;margin-left:4px">⌘K</span></div>
+      <button class="cop-ph-close" onclick="toggleCop()">✕</button>
+    </div>
+    <div class="cop-msgs" id="cop-msgs">
+      <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> At current pace, will we hit target?</div>
+      <div class="cmsg cmsg-a"><strong>RISCC —</strong> No — forecast ₹2.61Cr vs ₹2.80Cr target (₹19L gap). Run rate ₹9.6L/day needs to reach ₹15.8L/day. Closable if 163 leads reallocated today + 34 overdue hot leads actioned by week end. Note: 3 BDs had no calls logged yesterday — data may be incomplete. Want me to model the reallocation scenario?</div>
+    </div>
+    <div class="cop-foot">
+      <input type="text" id="cop-in" placeholder="Ask anything — ⌘K…"/>
+      <button onclick="sendCop()">Ask ↗</button>
+    </div>
+  </div>
+  <button class="cop-btn" onclick="toggleCop()"><i class="ti ti-robot"></i></button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let curPage='exec', charts={}, ribbonOpen=true;
+
+// ── API base — same origin (backend serves this file from /public) ──
+const API_BASE = '/api';
+function adminHeaders(){
+  const token = localStorage.getItem('riscc_admin_token');
+  return token ? {'Authorization': 'Bearer '+token} : {};
+}
+async function api(path){
+  try{
+    const res = await fetch(API_BASE + path, {headers: adminHeaders()});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return await res.json();
+  }catch(e){
+    console.error('API error', path, e);
+    return null;
+  }
+}
+async function apiPost(path, body){
+  try{
+    const res = await fetch(API_BASE + path, {method:'POST', headers:{'Content-Type':'application/json', ...adminHeaders()}, body: JSON.stringify(body||{})});
+    return await res.json();
+  }catch(e){
+    console.error('API POST error', path, e);
+    return {error: String(e)};
+  }
+}
+function fmtCr(n){ return '₹'+(n/10000000).toFixed(2)+'Cr'; }
+function fmtL(n){ return '₹'+(n/100000).toFixed(1)+'L'; }
+function fmtNum(n){ return (n||0).toLocaleString('en-IN'); }
+
+function nav(el,page,title){
+  curPage=page;
+  document.getElementById('topbar-title').textContent=title;
+  document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('on'));
+  if(el)el.classList.add('on');
+  Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});charts={};
+  document.getElementById('main-content').innerHTML=PAGES[page]||`<div style="padding:30px;color:var(--muted)">Building ${title}…</div>`;
+  setTimeout(()=>initC(page),80);
+  loadPageData(page);
+}
+
+// ── Live data loaders — fetch from backend and patch the DOM ────────
+async function loadPageData(page){
+  if(LOADERS[page]) { try { await LOADERS[page](); } catch(e){ console.error('loader error', page, e); } }
+}
+
+function toggleRibbon(){
+  const r=document.getElementById('ribbon');
+  ribbonOpen=!ribbonOpen;
+  r.classList.toggle('ribbon-collapsed',!ribbonOpen);
+  r.querySelector('.ribbon-toggle').textContent=ribbonOpen?'◀':'▶';
+}
+function toggleIns(i){document.getElementById('ins'+i).classList.toggle('open');}
+
+function toggleCop(){document.getElementById('cop-panel').classList.toggle('open');}
+async function sendCop(){
+  const inp=document.getElementById('cop-in'),q=inp.value.trim();if(!q)return;
+  const msgs=document.getElementById('cop-msgs');
+  msgs.innerHTML+=`<div class="cmsg cmsg-u" style="margin-top:8px"><span style="color:var(--muted)">You —</span> ${q}</div>`;
+  const thinkingId = 'think-'+Math.random().toString(36).slice(2);
+  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>RISCC —</strong> Thinking…</div>`;
+  msgs.scrollTop=msgs.scrollHeight;inp.value='';
+  const result = await apiPost('/copilot', {question:q});
+  const el = document.getElementById(thinkingId);
+  if(el){
+    el.style.color=''; el.style.fontStyle='';
+    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+  }
+  msgs.scrollTop=msgs.scrollHeight;
+}
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();toggleCop();}});
+
+function setRole(r){
+  const msgs={admin:'Full access — all pages, all BDs, config',cro:'All pages, all BDs, read-only config',tl:'Own team pages only',bd:'Own performance page only',analyst:'All pages, read-only, can export'};
+  alert('Role: '+r.toUpperCase()+'\n'+msgs[r]);
+}
+
+function kcard(label,val,delta,deltaDir,bar,spark){
+  return `<div class="kcard" onclick="openDrill('${label}')">
+  <div class="kcard-bar ${bar}"></div>
+  <div class="kcard-label">${label}</div>
+  <div class="kcard-val">${val}</div>
+  <div class="kcard-bottom">
+    <div class="kcard-delta ${deltaDir}">${delta}</div>
+    <canvas class="sparkline" data-spark="${spark}"></canvas>
+  </div>
+</div>`;}
+function openDrill(label){alert('Drill-down: '+label+'\n→ In production this opens a detail modal or navigates to the filtered detail page.');}
+function badge(text,cls){return `<span class="badge ${cls}">${text}</span>`;}
+function btn(text,cls=''){return `<button class="btn-sm ${cls}">${text}</button>`;}
+function fr(name,type,desc,tags){
+  return `<div class="fr-row"><span class="fr-name">${name}</span><span class="fr-type">${type}</span>${(tags||[]).map(t=>`<span class="tag-${t.toLowerCase()}">${t}</span>`).join('')}<span class="fr-desc">${desc}</span></div>`;}
+function sbar(pct,clr){return `<div class="sbar-cell"><div class="sbar-w"><div class="sbar-f" style="width:${pct}%;background:${clr}"></div></div><span style="font-size:10px;color:var(--muted)">${pct}</span></div>`;}
+
+function initSparks(){
+  document.querySelectorAll('.sparkline[data-spark]').forEach((el,idx)=>{
+    const data=el.dataset.spark.split(',').map(Number);
+    const id='sp-'+idx+'-'+Math.random().toString(36).slice(2);
+    const trend=data[data.length-1]>=data[0];
+    charts[id]=new Chart(el,{type:'line',data:{labels:data.map((_,i)=>i),datasets:[{data,borderColor:trend?'#16A34A':'#C0392B',borderWidth:1.5,pointRadius:0,fill:false,tension:.4}]},options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}},animation:false}});
+  });
+}
+
+// ── INSIGHT RIBBON DATA ──────────────────────────────────────────
+const INSIGHTS=[
+  ['P0','BD performance','Rahul S. — manipulation score 88, auto-escalated. Freeze allocation + reassign 54 leads by EOD.','344 zero-second calls detected. Manip. score 88/100. Real CVR 4.1% on 44 actual calls.','Meena V. to freeze Rahul S., reallocate 54 leads to Priya K. + Sneha G., audit 3 recordings by 12 PM.','b-p0'],
+  ['P0','Lead intelligence','738 uncontacted leads — 26% above 25% threshold. ₹64.4L pipeline at risk.','738/2,841 = 26% uncontacted. Rising 3 consecutive days. BD scores 0.18 + 0.28 for responsible BDs.','Reallocate 163 leads from Rahul S. + Varun T. to top-score BDs. Run allocation engine now.','b-p0'],
+  ['P1','Source quality','WhatsApp CPL +122% — ROI 3%. Cut ₹80K/wk and shift to Facebook.','CPL rose ₹820→₹1,820. CAC ₹75,833 vs Facebook ₹8,632. CVR flat at 3.1%.','Reallocate ₹80K/wk to Facebook for 12 remaining days. Expected +₹4.8L uplift.','b-p1'],
+  ['P1','Follow-up risk','Chase compliance 54% — below 65% trigger. 34 hot leads expired.','FU Done/Scheduled = 54%. Avg gap 2.8 days (trigger >2d). 34 Hot-temp leads overdue >24h.','TLs to call BDs with >5 missed FUs now. Reassign Arjun S. + Divya R. immediately.','b-p1']
+];
+document.getElementById('ribbon-body').innerHTML = INSIGHTS.map(([pr,cat,title,ev,action,badgeCls],i)=>`
+<div class="ins-card" id="ins${i}" onclick="toggleIns(${i})">
+  <div class="ins-meta"><span class="badge ${badgeCls}">${pr}</span><span style="font-size:10px;color:var(--muted)">${cat}</span></div>
+  <div class="ins-title">${title}</div>
+  <div class="ins-body">
+    <div style="margin-bottom:5px"><strong style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Evidence</strong><br>${ev}</div>
+    <div><strong style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Recommended action</strong><br>${action}</div>
+    <div class="ins-actions"><button class="ins-btn addressed" onclick="event.stopPropagation()"><i class="ti ti-check"></i> Mark addressed</button><button class="ins-btn" onclick="event.stopPropagation()">Drill in ↗</button></div>
+  </div>
+</div>`).join('') + `<div style="margin-top:8px;padding:8px 0;border-top:0.5px solid var(--border);text-align:center"><button style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">View 34 more insights ↓</button></div>`;
+
+// ══════════════════════════════════════════════════════════════════
+// PAGES
+// ══════════════════════════════════════════════════════════════════
+const PAGES={
+
+'exec':`
+<div class="filters-bar">
+  <div class="filter-group"><span class="filter-label">Period:</span>
+    <select class="fsel"><option>MTD Jun 2026</option><option>Last 7 days</option><option>Last 30 days</option><option>QTD</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">BD:</span>
+    <select class="fsel"><option>All BDs</option><option>Priya K.</option><option>Ajay M.</option><option>Sneha G.</option><option>Rahul S.</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">Source:</span>
+    <select class="fsel"><option>All Sources</option><option>Facebook</option><option>Google</option><option>YouTube</option><option>Organic</option><option>WhatsApp</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">TL:</span>
+    <select class="fsel"><option>All Teams</option><option>Anand R.</option><option>Meena V.</option></select>
+  </div>
+  <button class="filter-reset">Reset All ✕</button>
+</div>
+
+<div class="sl">Section A — Revenue</div>
+<div class="kgrid">
+  ${kcard('Net Revenue','₹1.84Cr','↑ 12% vs last month','up','g','8.2,9.1,7.4,11.3,8.8,10.2,9.6')}
+  ${kcard('Gross Revenue','₹2.09Cr','Revenue gap: 12.0%','nt','y','8.9,9.8,8.1,12.0,9.4,11.0,10.4')}
+  ${kcard('Revenue Target','₹2.80Cr','₹19L gap to close','dn','y','9.3,9.3,9.3,9.3,9.3,9.3,9.3')}
+  ${kcard('% of Target','65.7%','Yellow zone · needs ₹15.8L/day','nt','y','55,58,60,62,63,65,65.7')}
+  ${kcard('Forecast (EOM)','₹2.61Cr','81% confidence · High','up','g','2.1,2.2,2.3,2.4,2.5,2.55,2.61')}
+  ${kcard('Revenue at Risk','₹12.8L','347 uncontacted leads','dn','r','18,17,15,14,13,12.8,12.8')}
+</div>
+
+<div class="sl">Section B — Sales & CVR</div>
+<div class="kgrid">
+  ${kcard('Total Sales MTD','236','↑ 8% vs last month','up','g','168,182,195,208,218,228,236')}
+  ${kcard('Real CVR %','11.2%','Most important metric','up','g','9.8,10.1,10.4,10.8,11.0,11.2,11.2')}
+  ${kcard('Overall CVR %','8.3%','Sales / Assigned','nt','y','7.8,7.9,8.0,8.1,8.2,8.3,8.3')}
+  ${kcard('Avg Ticket Size','₹77.9K','Net revenue / 236 sales','up','g','74,75,76,77,77.5,77.9,77.9')}
+</div>
+
+<div class="g2">
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Daily Revenue vs Target</div><div class="card-actions">${btn('Export CSV')}</div></div>
+    <div class="cw"><canvas id="revChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Target Achievement</div><div class="card-sub">Gauge — MTD</div></div>
+    <div class="gauge-wrap">
+      <canvas id="gaugeChart" style="width:160px;height:160px"></canvas>
+      <div class="gauge-val">65.7%</div>
+      <div class="gauge-target">of ₹2.80Cr target · ₹19L gap</div>
+    </div>
+  </div>
+</div>
+
+<div class="sl">Section C — Lead coverage</div>
+<div class="kgrid">
+  ${kcard('Assigned','2,841','MTD total','nt','g','2200,2350,2480,2590,2680,2760,2841')}
+  ${kcard('Contacted','2,103','74% penetration','kw','y','1600,1700,1780,1850,1920,2040,2103')}
+  ${kcard('Uncontacted','738','⚠ 26% — above 25% alert','dn','r','750,740,745,740,738,738,738')}
+  ${kcard('Stale (15d+)','182','Last call >15 days','dn','r','140,150,158,165,170,178,182')}
+</div>
+
+<div class="sl">Section D — AI priority actions · Analyst Agent · 9:00 AM</div>
+<div class="card">
+${[['P0','Rahul S. manipulation score 88 — auto-escalated. Freeze + reassign 54 leads to Priya K. + Sneha G. by EOD.','₹8.4L at risk','Meena V.','var(--accent)','ti-urgent'],
+   ['P0','738 uncontacted leads (26%). ₹64.4L pipeline at risk. Lead Allocation Engine flagged 3 BDs for reduction.','₹64.4L pipeline','Rev Ops','var(--accent)','ti-alert-circle'],
+   ['P1','WhatsApp CPL +122% (trigger: 30%). CAC ₹75,833 vs Facebook ₹8,632. Shift ₹80K/wk to Facebook.','₹4.8L upside','Marketing','var(--warning)','ti-chart-bar'],
+   ['P1','Chase compliance 54% (trigger <65%). Avg FU gap 2.8d (trigger >2d). 34 hot leads missed.','₹16.4L at risk','All TLs','var(--warning)','ti-alert-circle'],
+   ['P2','Forecast tracking ₹19L below target — not yet at 25% trajectory trigger. Monitor.','₹19L gap','CRO','var(--mid)','ti-eye']
+].map(([pr,txt,amt,own,c,ic])=>`
+<div style="display:flex;gap:10px;align-items:flex-start;padding:9px;background:var(--bg);border-radius:8px;margin-bottom:7px;border:0.5px solid var(--border)">
+  <i class="ti ${ic}" style="color:${c};font-size:15px;flex-shrink:0;margin-top:1px"></i>
+  <div style="flex:1;font-size:13px;color:var(--text);line-height:1.5">${txt}
+    <div style="margin-top:5px;display:flex;align-items:center;gap:7px">
+      <span class="badge ${pr==='P0'?'b-p0':pr==='P1'?'b-p1':'b-p2'}">${pr}</span>
+      <span style="font-size:11px;color:var(--muted)">${amt}</span>
+      <span style="font-size:11px;color:var(--muted)">Owner: ${own}</span>
+    </div>
+  </div>
+</div>`).join('')}
+</div>`,
+
+'bd':`
+<div class="sl">BD Summary · v_bd_daily_summary · refreshed every 15 min</div>
+<div class="card">
+<div class="card-hdr">
+  <div class="card-title">BD Performance Table</div>
+  <div class="card-actions">${btn('Sort by CVR')} ${btn('Export CSV')} ${btn('Export Excel')}</div>
+</div>
+<div class="tw">
+<table class="t">
+<thead><tr>
+  <th onclick="sortTbl(this)">BD ▲</th><th onclick="sortTbl(this)">Assigned</th><th onclick="sortTbl(this)">Penetration</th>
+  <th onclick="sortTbl(this)">Connected</th><th onclick="sortTbl(this)">Talktime</th><th onclick="sortTbl(this)">Chase %</th>
+  <th onclick="sortTbl(this)">Sales</th><th onclick="sortTbl(this)">Real CVR %</th><th onclick="sortTbl(this)">Revenue</th>
+  <th onclick="sortTbl(this)">Manip.</th><th onclick="sortTbl(this)">BD Score</th><th>Status</th><th>Actions</th>
+</tr></thead>
+<tbody>
+${[['Priya K.','Anand',280,'93%','ku',892,'92h','88%','ku',39,'14.1%','ku','₹30.4L',6,'ku','0.84','ku','Star','b-ok'],
+   ['Ajay M.','Anand',260,'92%','ku',766,'78h','83%','',31,'12.0%','ku','₹24.2L',9,'ku','0.78','ku','Star','b-ok'],
+   ['Sneha G.','Meena',245,'89%','',698,'66h','70%','kw',22,'9.2%','','₹17.1L',14,'ku','0.67','','On track','b-muted'],
+   ['Neha R.','Meena',230,'82%','',571,'54h','65%','kw',16,'7.8%','','₹12.5L',22,'kw','0.61','','Watch','b-warn'],
+   ['Kabir D.','Anand',220,'79%','kw',503,'48h','57%','kw',13,'7.2%','','₹10.1L',28,'kw','0.55','kw','Watch','b-warn'],
+   ['Varun T.','Anand',218,'59%','kd',329,'28h','41%','kd',7,'3.2%','kd','₹5.4L',71,'kd','0.28','kd','Reduce','b-bad'],
+   ['Rahul S.*','Meena',210,'53%','kd',44,'8h*','38%','kd',9,'4.1%','kd','₹7.0L',88,'kd','0.18','kd','⚠ Freeze','b-bad']
+].map(([n,tl,asgn,pen,penC,conn,tt,chase,chaseC,sales,cvr,cvrC,rev,manip,manipC,score,scoreC,status,statCls])=>`
+<tr>
+  <td><a href="#" style="color:var(--primary);text-decoration:none;font-weight:500" onclick="event.preventDefault()">${n}</a><br><span style="font-size:10px;color:var(--muted)">TL: ${tl}</span></td>
+  <td>${asgn}</td><td class="${penC}">${pen}</td><td>${conn}</td><td>${tt}</td>
+  <td class="${chaseC}">${chase}</td><td>${sales}</td><td class="${cvrC}" style="font-weight:600">${cvr}</td>
+  <td style="font-weight:500">${rev}</td><td class="${manipC}" style="font-weight:600">${manip}</td>
+  <td>${sbar(Math.round(parseFloat(score)*100),parseFloat(score)>0.7?'#16A34A':parseFloat(score)>0.5?'#D97706':'#C0392B')} <span class="${scoreC}" style="font-size:11px">${score}</span></td>
+  <td>${badge(status,statCls)}</td>
+  <td><div class="td-action">${btn('View')} ${btn('Call')} ${btn('Reassign')}</div></td>
+</tr>`).join('')}
+</tbody></table></div>
+<div style="font-size:11px;color:var(--muted);margin-top:7px;font-family:'JetBrains Mono',monospace">* After zero-second call exclusion. BD_Score = (CVR×0.4)+(Chase×0.25)+(Penetration×0.2)+(1−Manip/100×0.15)</div>
+</div>
+
+<div class="g2">
+  <div class="card"><div class="card-hdr"><div class="card-title">Performance Quadrant</div><div class="card-sub">Avg call duration vs Real CVR</div></div>
+    <div class="cw"><canvas id="qc"></canvas></div>
+  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Anti-Manipulation Engine</div><div class="card-sub">Score >60 flagged · >80 auto-escalate</div></div>
+    <table class="t"><thead><tr><th>BD</th><th>Score</th><th>Key signals</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Rahul S.</td><td class="kd" style="font-weight:700">88</td><td style="font-size:11px">zero-sec +20, rapid-dial +15, ghost-FU +15, avg-dur +10, CVR-inflate +10</td><td>${badge('Auto-escalate','b-p0')}</td></tr>
+      <tr><td>Varun T.</td><td class="kw" style="font-weight:700">71</td><td style="font-size:11px">ghost-FU +15, rapid-dial +15, after-hrs +10, zero-sec +8</td><td>${badge('Flagged','b-p1')}</td></tr>
+      <tr><td>Dev P.</td><td style="font-weight:700">34</td><td style="font-size:11px">after-hrs +10, ghost-FU +15, zero-sec +5</td><td>${badge('Watch','b-warn')}</td></tr>
+      <tr><td>Priya K.</td><td class="ku" style="font-weight:700">6</td><td style="font-size:11px">No signals detected</td><td>${badge('Clean','b-ok')}</td></tr>
+    </tbody></table>
+  </div>
+</div>`,
+
+'source':`
+<div class="sl">Source performance · v_source_performance · CAC = Spend/Sales · ROI = (Rev−Spend)/Spend×100</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">Source ROI Table</div><div class="card-actions">${btn('Export CSV')} ${btn('Export Excel')}</div></div>
+<div class="tw"><table class="t">
+<thead><tr><th>Source</th><th>Leads</th><th>CPL</th><th>CVR %</th><th>Real CVR %</th><th>Revenue</th><th>CAC</th><th>ROI %</th><th>30d Trend</th><th>Recommendation</th></tr></thead>
+<tbody>
+  <tr><td style="font-weight:500">Referral</td><td>124</td><td>₹0</td><td>16.1%</td><td class="ku">18.4%</td><td>₹17.8L</td><td>₹0</td><td class="ku">∞</td><td class="ku">↑ stable</td><td>${badge('Increase','b-ok')}</td></tr>
+  <tr><td style="font-weight:500">Facebook Ads</td><td>684</td><td>₹820</td><td>9.5%</td><td class="ku">11.2%</td><td>₹49.7L</td><td>₹8,632</td><td class="ku">887%</td><td class="ku">↑ rising</td><td>${badge('Increase','b-ok')}</td></tr>
+  <tr><td style="font-weight:500">YouTube</td><td>412</td><td>₹640</td><td>7.8%</td><td>8.8%</td><td>₹25.0L</td><td>₹8,205</td><td>744%</td><td>→ flat</td><td>${badge('Maintain','b-p2')}</td></tr>
+  <tr><td style="font-weight:500">Google Ads</td><td>388</td><td>₹1,240</td><td>8.2%</td><td>9.7%</td><td>₹24.7L</td><td>₹15,122</td><td>413%</td><td>→ flat</td><td>${badge('Maintain','b-p2')}</td></tr>
+  <tr><td style="font-weight:500">Organic / SEO</td><td>741</td><td>₹210</td><td>5.8%</td><td>6.8%</td><td>₹33.4L</td><td>₹3,621</td><td>1,240%</td><td>→ flat</td><td>${badge('Maintain','b-p2')}</td></tr>
+  <tr style="background:#FEF2F2"><td style="font-weight:500">WhatsApp</td><td>492</td><td class="kd">₹1,820</td><td class="kd">2.4%</td><td class="kd">3.1%</td><td>₹9.2L</td><td class="kd">₹75,833</td><td class="kd">3%</td><td class="kd">↓ decaying</td><td>${badge('Cut','b-bad')}</td></tr>
+</tbody></table></div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">CVR Trend — 90 Days</div><div class="card-sub">Declining >20% = AI Analyst trigger</div></div>
+<div class="cw" style="height:200px"><canvas id="sc"></canvas></div>
+<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11px;color:var(--muted)">
+  ${[['Facebook','#16A34A','↑ rising'],['Google','#2E5FA3','→ flat'],['YouTube','#7C3AED','→ flat'],['Organic','#D97706','→ flat'],['WhatsApp','#C0392B','↓ cut signal']].map(([n,c,t])=>`<span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:2px;background:${c};display:inline-block;border-radius:1px"></span>${n} <span style="${t.includes('↑')?'color:#16A34A':t.includes('↓')?'color:#C0392B':'color:var(--muted)'}">${t}</span></span>`).join('')}
+</div></div>`,
+
+'followup':`
+<div class="sl">Follow-up intelligence · v_followup_status · tolerance ±4h</div>
+<div class="kgrid">
+  ${kcard('Due Today','148','Scheduled follow-ups','nt','g','120,130,140,148,148,148,148')}
+  ${kcard('Overdue','211','Past date, no call','dn','r','180,188,195,200,205,210,211')}
+  ${kcard('Avg FU Gap','2.8d','Target: 0 days','dn','y','1.2,1.4,1.8,2.1,2.4,2.6,2.8')}
+  ${kcard('Chase Compliance','54%','Below 65% trigger','dn','r','71,68,65,62,59,56,54')}
+  ${kcard('Done Today','62','Of 148 due (42%)','dn','r','88,80,74,70,68,64,62')}
+  ${kcard('Hot Leads Missed','34','P0 — >24h no FU','dn','r','18,22,24,27,29,31,34')}
+</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">Overdue Follow-Up Table</div><div class="card-actions">${btn('Export')}</div></div>
+<div class="tw"><table class="t">
+<thead><tr><th>Lead</th><th>BD</th><th>Last Call</th><th>FU Scheduled</th><th>Days Overdue</th><th>Temperature</th><th>Revenue at Risk</th><th>Action</th></tr></thead>
+<tbody>
+  <tr><td>Arjun S.</td><td>Rahul S.</td><td>Jun 4</td><td>Jun 5</td><td class="kd" style="font-weight:600">6d</td><td>${badge('Hot','b-p0')}</td><td style="font-weight:500">₹89,000</td><td><div class="td-action" style="opacity:1">${btn('Reassign','btn-primary')} ${btn('Call Now')}</div></td></tr>
+  <tr><td>Divya R.</td><td>Varun T.</td><td>Jun 6</td><td>Jun 7</td><td class="kd" style="font-weight:600">4d</td><td>${badge('Hot','b-p0')}</td><td style="font-weight:500">₹1,12,000</td><td><div class="td-action" style="opacity:1">${btn('Reassign','btn-primary')} ${btn('Call Now')}</div></td></tr>
+  <tr><td>Karan P.</td><td>Neha R.</td><td>Jun 8</td><td>Jun 9</td><td class="kw" style="font-weight:600">2d</td><td>${badge('Warm','b-p1')}</td><td>₹67,500</td><td><div class="td-action" style="opacity:1">${btn('Call Now','btn-primary')}</div></td></tr>
+  <tr><td>Meera K.</td><td>Kabir D.</td><td>Jun 9</td><td>Jun 10</td><td class="kw" style="font-weight:600">1d</td><td>${badge('Warm','b-p1')}</td><td>₹82,000</td><td><div class="td-action" style="opacity:1">${btn('Call Now','btn-primary')}</div></td></tr>
+</tbody></table></div></div>`,
+
+'prod':`
+<div class="sl">Productivity · working hours = MAX(activity)−MIN(activity) per BD per day</div>
+<div class="kgrid">
+  ${kcard('Working hrs avg','8.2h','Login to logout','nt','g','8.0,8.1,8.2,8.3,8.2,8.1,8.2')}
+  ${kcard('Productive hrs','3.6h','Calls >30s · target ≥40%','up','g','3.1,3.2,3.3,3.4,3.5,3.6,3.6')}
+  ${kcard('Productive %','43.9%','Target ≥40% ✓','up','g','39,40,41,42,43,43.5,43.9')}
+  ${kcard('Calls per hour','6.2','Target 4–8/hr ✓','up','g','5.4,5.6,5.8,5.9,6.0,6.1,6.2')}
+  ${kcard('Team coverage','89%','24/27 BDs active','nt','g','82,84,85,86,87,88,89')}
+</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">BD activity heatmap — hour of day</div><div class="card-sub">Connected calls per BD per hour · darker = more calls</div></div>
+<div class="heatmap-wrap"><div id="heatmap-container"></div></div>
+</div>`,
+
+'leakage':`
+<div class="sl">Lead leakage · leads table + v_lead_lifecycle</div>
+<div class="kgrid">
+  ${kcard('Uncontacted >24h','347','₹22.4L at risk','dn','r','290,300,312,320,330,340,347')}
+  ${kcard('Single-touch lost','94','1 call, marked Lost','dn','r','70,75,79,83,87,91,94')}
+  ${kcard('Stale (15d+)','182','last_call_date < TODAY-15','dn','r','140,150,158,165,170,178,182')}
+  ${kcard('Ghosted leads','67','Callback gap >48h','dn','r','50,55,58,61,63,65,67')}
+  ${kcard('Expired hot leads','34','Hot temp, FU missed >24h','dn','r','18,22,25,28,30,32,34')}
+  ${kcard('Total Leakage est.','₹46.8L','Count × 11.2% × ₹77.9K','dn','r','32,36,39,41,44,46,46.8')}
+</div>
+<div class="g2">
+  <div class="card"><div class="card-hdr"><div class="card-title">Revenue leakage calculator</div></div>
+    ${[['Uncontacted (347)','₹22.4L','kd'],['Single-touch (94)','₹6.1L','kd'],['Stale (182)','₹11.8L','kw'],['Ghosted (67)','₹4.3L','kw'],['Expired hot (34)','₹2.2L','kd']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+    <div style="margin-top:10px;padding:8px 10px;background:#FEF2F2;border-radius:8px;display:flex;justify-content:space-between;align-items:center;border:0.5px solid #FECACA"><span style="font-size:12px;font-weight:600">Total estimate</span><span style="font-size:18px;font-weight:700;color:var(--accent)">₹46.8L</span></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:5px;font-family:'JetBrains Mono',monospace">= Count × 11.2% Real CVR × ₹77.9K avg net ticket</div>
+  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Leakage by BD</div></div>
+    <table class="t"><thead><tr><th>BD</th><th>Uncontacted</th><th>Stale</th><th>Total</th><th>BD Score</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>Varun T.</td><td class="kd">61</td><td class="kd">28</td><td class="kd" style="font-weight:600">89</td><td class="kd">0.28</td><td>${badge('Reduce leads','b-bad')}</td></tr>
+      <tr><td>Rahul S.</td><td class="kd">54</td><td class="kd">20</td><td class="kd" style="font-weight:600">74</td><td class="kd">0.18</td><td>${badge('Freeze','b-bad')}</td></tr>
+      <tr><td>Neha R.</td><td class="kw">24</td><td class="kw">17</td><td class="kw" style="font-weight:600">41</td><td>0.61</td><td>${badge('Monitor','b-warn')}</td></tr>
+      <tr><td>Priya K.</td><td class="ku">2</td><td class="ku">1</td><td class="ku" style="font-weight:600">3</td><td class="ku">0.84</td><td>${badge('Add leads','b-ok')}</td></tr>
+    </tbody></table>
+  </div>
+</div>`,
+
+'funnel':`
+<div class="sl">Conversion funnel · leads.status field + calls.duration_seconds threshold >30s</div>
+<div class="g3">
+  <div class="kcard" style="cursor:default"><div class="kcard-bar g"></div><div class="kcard-label">Overall CVR %</div><div class="kcard-val">8.3%</div><div class="kcard-bottom"><div class="kcard-delta nt">Sales / Assigned</div></div></div>
+  <div class="kcard" style="border:2px solid var(--gold);cursor:default"><div class="kcard-bar g"></div><div class="kcard-label" style="color:var(--gold)">Real CVR % ← Key metric</div><div class="kcard-val ku">11.2%</div><div class="kcard-bottom"><div class="kcard-delta up">Sales / Connected leads (>30s)</div></div></div>
+  <div class="kcard" style="cursor:default"><div class="kcard-bar g"></div><div class="kcard-label">Rolling CVR (30d)</div><div class="kcard-val">8.7%</div><div class="kcard-bottom"><div class="kcard-delta nt">Used in forecast engine</div></div></div>
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">7-stage conversion funnel</div><div class="card-sub">Stage CVR = conversions at stage / count at stage × 100</div></div>
+${[['Leads assigned','2,841','100%','#2E5FA3',100],['Contacted ≥1 call >30s','2,103','74.0%','#16A34A',74],['Interested / FU scheduled','1,079','51.3%','#7C3AED',51.3],['Demo / counseling done','688','63.8%','#D4A017',24],['Proposal sent','498','72.4%','#D97706',18],['Follow-up active','386','77.5%','#C0392B',14],['Converted (order confirmed)','236','61.1%','#C0392B',8.3]].map(([l,n,p,c,w])=>`
+<div class="funnel-step">
+  <div class="funnel-lbl">${l}</div>
+  <div class="funnel-bw"><div class="funnel-bf" style="width:${w}%;background:${c}"><span>${n}</span></div></div>
+  <div class="funnel-pct">${p}</div>
+</div>`).join('')}
+</div>`,
+
+'cohort':`
+<div class="sl">Cohort analysis · leads.assigned_date grouped by week · color intensity = CVR %</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Cohort CVR progression</div><div class="card-sub">Primary conversion window: Week 2–3 · Early CVR (Wk1) typically &lt;3.5%</div></div>
+<div class="cohort-wrap"><table class="cohort-grid">
+<thead><tr><th>Cohort</th><th>Assigned</th><th>Contacted %</th><th>CVR Wk1</th><th>CVR Wk2</th><th>CVR Wk3</th><th>CVR Wk4</th><th>Final CVR</th><th>Status</th></tr></thead>
+<tbody id="cohort-body"></tbody>
+</table></div>
+<div style="display:flex;align-items:center;gap:10px;margin-top:10px;font-size:11px;color:var(--muted)">
+  Color intensity: <span style="display:inline-flex;gap:3px">${[2,4,6,8,10,12].map(v=>`<span style="width:24px;height:14px;background:${cvColor(v)};border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:8px;color:${v>6?'#fff':'#333'}">${v}%</span>`).join('')}</span>
+</div>
+</div>`,
+
+'forecast':`
+<div class="sl">Forecast · v_forecast_inputs · 4-component weighted model</div>
+<div class="kgrid">
+  ${kcard('Forecast (EOM)','₹2.61Cr','High confidence 81%','up','g','2.1,2.2,2.35,2.45,2.52,2.58,2.61')}
+  ${kcard('Run rate (30%)','₹1.15Cr','₹9.6L/day × 12 days','up','g','8.8,9.0,9.2,9.4,9.5,9.6,9.6')}
+  ${kcard('Pipeline (40%)','₹1.92Cr','Open leads × CVR × ticket','up','g','1.6,1.7,1.75,1.8,1.85,1.9,1.92')}
+  ${kcard('Days remaining','12','Jun 11 → Jun 30','nt','g','30,27,24,21,18,15,12')}
+  ${kcard('Required daily','₹15.8L','To hit ₹2.80Cr target','dn','y','19,18.5,18,17.5,17,16.5,15.8')}
+  ${kcard('Gap to target','₹19L','Closable with reallocation','dn','y','45,40,35,30,27,23,19')}
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Forecast formula — no black box</div></div>
+<div class="fbox">Forecast = (Run Rate × 0.30) + (Pipeline × 0.40) + (Collections × 0.20) + (Adjustment × 0.10)
+= (₹9.6L/d × 12d × 0.30) + (2,841 leads × 8.7% CVR × ₹77.9K × 0.40) + (EMI due × 0.20) + (0% adj)
+= ₹34.5L + ₹76.8L + ₹7.0L + ₹0 = ₹2.61Cr
+
+Adjustment triggers:
+  CVR trending up   → +5%  → ₹2.74Cr
+  CVR trending down → −5%  → ₹2.48Cr [Forecast Risk alert triggered]
+  Manipulation det. → −10% → ₹2.35Cr [P0 alert]
+  Forecast >25% below target → Forecast Risk insight card generated</div>
+${[['Collected MTD','₹1.84Cr',''],['Run rate component (30%)','₹34.5L','ku'],['Pipeline component (40%)','₹76.8L','ku'],['Collections component (20%)','₹7.0L',''],['Confidence band','₹2.44–₹2.79Cr',''],['Gap to ₹2.80Cr target','₹19L','kd']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+</div>`,
+
+'ai':`
+<div class="sl">AI Analyst Agent · 6-step pipeline · 9 AM auto + on-demand refresh</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Daily execution flow</div><div class="card-actions">${btn('↻ Refresh Analysis')}</div></div>
+${[['Pull last 24h data','calls + CRM + sales + collections → raw snapshot'],['Compare to 7d and 30d averages','Variance table across all 60+ KPIs'],['Identify metrics outside ±15%','Anomaly list — only statistically significant deviations'],['Rank by revenue impact','(expected − actual) × avg ticket × leads affected'],['Generate insight cards (max 10/day)','Title · Evidence · Root cause · Revenue impact · Action · Priority'],['Push to dashboards','Daily Review Center + AI Insights — visible by 9 AM']].map(([a,o],i)=>`<div class="flow-step"><div class="flow-num">${i+1}</div><div><div class="flow-act">${a}</div><div class="flow-out">${o}</div></div></div>`).join('')}
+</div>
+<div class="sl">Today's insight cards — full format · 38 generated · showing top 4</div>
+${[['P0','b-p0','BD performance','b-manip','Rahul S. — manipulation score 88, auto-escalation triggered',
+  'Real CVR 4.1% on 44 real calls. 344 zero-second calls excluded. Manip. score 88/100 (threshold: 80).',
+  'Auto-dialer abuse to inflate call count for incentive threshold. CVR with <2 min avg talktime = fake conversion signal.',
+  '₹6.9L direct + ₹8.4L pipeline','Freeze Rahul S. allocation now. Reassign 54 leads to Priya K. + Sneha G. Audit 3 recordings by 12 PM.','Meena V.','EOD today'],
+ ['P0','b-p0','Lead intelligence','b-p2','738 uncontacted leads — 26%, above 25% alert threshold',
+  '738/2,841 = 26% uncontacted (trigger >25%). Has been rising 3 consecutive days per v_lead_lifecycle.',
+  'Lead allocation concentrated in low BD-score BDs (0.18, 0.28) who are not contacting assigned leads.',
+  '₹64.4L pipeline at risk','Reallocate 163 leads: 80→Priya K., 54→Sneha G., 29→Ajay M. Run allocation engine now.','Rev Ops','EOD today'],
+ ['P1','b-p1','Source quality','b-warn','WhatsApp CPL spike 122% — ROI 3%, cut recommended',
+  'campaigns.spend / leads_generated = ₹1,820 (was ₹820 last month). +122% spike vs 30% trigger.',
+  'Audience fatigue + list quality decay. Connection rate dropped from 48% to 36% over 6 weeks.',
+  '₹12L/month wasted budget','Cut ₹80K/wk WhatsApp → Facebook for remaining 12 days. Expected +₹4.8L uplift.','Marketing','By Jun 12'],
+ ['P1','b-p1','Follow-up risk','b-warn','Chase compliance 54% — below 65% trigger, 34 hot leads at risk',
+  'followups Done/Scheduled = 54% (trigger <65%). AVG(gap_hours) = 67.2h (trigger >48h). 34 Hot leads missed.',
+  '2 BDs own 60% of missed FUs. Manipulation scores suggest intentional avoidance.',
+  '₹48.7L pipeline (34 hot × 18.4% CVR × ₹77.9K)','TLs call BDs with >5 missed FUs now. Reassign Arjun S. + Divya R. immediately.','All TLs','Within 2h']
+].map(([pr,prCls,cat,catCls,title,ev,rc,imp,action,owner,dl])=>`
+<div class="card" style="margin-bottom:10px">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-size:14px;font-weight:600;color:var(--text);flex:1">${title}</div>
+    <div style="display:flex;gap:5px">${badge(pr,prCls)} ${badge(cat,catCls)}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+    <div><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">Data evidence</div><div style="font-size:12px;color:var(--text);line-height:1.5">${ev}</div></div>
+    <div><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">Root cause</div><div style="font-size:12px;color:var(--text);line-height:1.5">${rc}</div></div>
+    <div><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">Revenue impact</div><div style="font-size:13px;font-weight:600;color:var(--text)">${imp}</div></div>
+    <div style="grid-column:1/-1;background:var(--bg);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text);line-height:1.5;border:0.5px solid var(--border)"><strong>Action (${dl}):</strong> ${action} — <em>Owner: ${owner}</em></div>
+  </div>
+  <div style="display:flex;gap:6px">${btn('Mark as Addressed')} ${btn('Drill in ↗')}</div>
+</div>`).join('')}`,
+
+'coaching':`
+<div class="sl">AI Coaching Engine · weekly Monday 9 AM + on CVR drop >20% · 8-field card format</div>
+<div class="card" style="margin-bottom:10px"><div class="card-hdr"><div class="card-title">Data inputs per BD (Doc 4, §2.1)</div></div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">${['Last 30 call transcripts (calls.recording_url)','Call duration per funnel stage','Objection frequency (NLP analysis)','CRM notes quality (leads.last_crm_update)','Real CVR trend 4 weeks','Comparison to top quartile BDs'].map(i=>`<span class="badge b-p2">${i}</span>`).join('')}</div>
+</div>
+${[['PK','#DCFCE7','#166534','Priya K.','14.1%','92h MTD','88%','10.5%','Top performer','b-ok',
+  'Closing — rarely attempts explicit commitment before call ends',
+  '8/10 converts: student closed proactively. Closing score 5.8/10. Avg close attempts 1.1/call vs top BD 3.2.',
+  'Ajay M. uses 3-step close: urgency anchor → seat scarcity → payment flexibility. CVR on calls with 3+ attempts: 22.4%.',
+  '"We have 3 seats left in June batch. Shall I block one for you right now? If fees are a concern, I can check the 3-month EMI option."',
+  'Attempt a named close on every call after fee discussion.',
+  'Close attempt rate ≥2/call in 5 calls reviewed by TL on Jun 18.',71,'#16A34A'],
+ ['RS','#FEE2E2','#991B1B','Rahul S.','4.1%*','8h* MTD','38%','10.5%','PIP required','b-bad',
+  'No real calls — 344 zero-sec calls is disciplinary, not a coaching issue',
+  'Call quality 2.1/10. calls.duration_seconds median = 3s. 88% of entries excluded by engine.',
+  'All top BDs: 7–9 min calls with structured discovery + pitch + close phases.',
+  'N/A — disciplinary intervention required. PIP documentation needed.',
+  'Attend PIP meeting with Meena V. + Manager today.',
+  'Outcome depends on PIP review Jun 14.',12,'#C0392B']
+].map(([init,bg,fg,name,cvr,tt,chase,avgCvr,badge_text,badgeCls,gap,ev,bench,script,focus,measure,prog,progClr])=>`
+<div class="cc">
+<div class="cc-hdr">
+  <div class="av" style="background:${bg};color:${fg}">${init}</div>
+  <div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--text)">${name}</div>
+  <div style="font-size:11px;color:var(--muted)">CVR: ${cvr} · Talktime: ${tt} · Chase: ${chase} · Team avg CVR: ${avgCvr}</div></div>
+  ${badge(badge_text,badgeCls)}
+</div>
+<div class="cc-grid">
+  <div><div class="cc-lbl">Top skill gap</div><div class="cc-val">${gap}</div></div>
+  <div><div class="cc-lbl">Evidence (from calls)</div><div class="cc-val">${ev}</div></div>
+  <div><div class="cc-lbl">Benchmark (top BD)</div><div class="cc-val">${bench}</div></div>
+  <div><div class="cc-lbl">This week's focus</div><div class="cc-val">${focus}</div></div>
+  <div style="grid-column:1/-1"><div class="cc-lbl">Recommended script</div><div class="cc-script">${script}</div></div>
+  <div style="grid-column:1/-1"><div class="cc-lbl">Progress check (next week)</div><div class="cc-val">${measure}</div>
+    <div class="prog-row"><span style="font-size:11px;color:var(--muted);min-width:110px">Coaching progress</span>
+    <div class="prog-bar"><div class="prog-fill" style="width:${prog}%;background:${progClr}"></div></div>
+    <span style="font-size:11px;font-weight:600;color:var(--muted)">${prog}%</span></div>
+  </div>
+</div>
+</div>`).join('')}`,
+
+'cop':`
+<div class="sl">Executive Copilot · Doc 4, §3 · 5 query categories · direct-answer format</div>
+<div class="g2" style="margin-bottom:10px">
+  <div class="card"><div class="card-hdr"><div class="card-title">5 query categories</div></div>
+    ${[['Performance','Top BDs, TL rankings, BD improvement rank'],['Diagnostic','Why CVR dropped, source underperformance, root cause'],['Forecast','Month-end projection, CVR sensitivity analysis'],['Action','Which leads to reassign, who needs urgent coaching'],['Comparison','This week vs last week, BD improvement this month']].map(([c,e])=>`<div class="mrow"><span style="font-size:12px;font-weight:500;color:var(--text)">${c}</span><span style="font-size:11px;color:var(--muted)">${e}</span></div>`).join('')}
+  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Response format rules (Doc 4, §3.2)</div></div>
+    ${['Lead with direct answer — no "Based on the data…" preamble','Show supporting numbers inline with every response','Offer to drill deeper or take action at response end','Flag data quality issues if relevant (missing BD logs, sync gaps)'].map((r,i)=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);align-items:flex-start"><div style="width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${i+1}</div><div style="font-size:12px;color:var(--text)">${r}</div></div>`).join('')}
+  </div>
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Full-page copilot interface</div><div class="card-sub">All 5 query categories · Docs 1–6 as context · &lt;3s response</div></div>
+<div style="border:0.5px solid var(--border);border-radius:10px;overflow:hidden">
+  <div style="padding:12px 14px;background:var(--primary);display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:13px;font-weight:600;color:#fff;display:flex;align-items:center;gap:7px"><i class="ti ti-robot"></i> Executive Copilot</div>
+    <span style="font-size:10px;color:rgba(255,255,255,.6)">⌘K from any page</span>
+  </div>
+  <div id="cop-msgs-full" style="padding:14px;min-height:120px;max-height:240px;overflow-y:auto">
+    <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> Why did our CVR drop this week?</div>
+    <div class="cmsg cmsg-a"><strong>RISCC —</strong> Real CVR dropped from 11.8% to 9.4% — a 20.3% decline. Three causes: (1) Rahul S. + Varun T. contributed only 2 sales this week vs 5 last. (2) WhatsApp leads (3.1% CVR) grew from 14% to 22% of this week's assignment. (3) FU compliance fell to 54%, sending 34 hot leads cold. Removing those two BDs, team CVR is 11.1% — essentially flat. Want a source-level breakdown?</div>
+  </div>
+  <div style="display:flex;gap:8px;padding:10px;border-top:0.5px solid var(--border)">
+    <input type="text" id="cop-in-full" placeholder="Ask anything — 'Who are top 5 BDs?', 'Forecast at 10% CVR?', 'Which leads to reassign?'…" style="flex:1;font-size:12px;padding:8px 12px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg);color:var(--text)"/>
+    <button onclick="sendCopFull()" style="font-size:12px;padding:8px 16px;border-radius:8px;border:none;background:var(--primary);color:#fff;cursor:pointer">Ask ↗</button>
+  </div>
+</div>
+<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
+  ${['Who are top 5 BDs?','Will we hit target?','Which BD improved most?','Which leads to reassign?','Which source to cut?','Who needs urgent coaching?','What is CVR by team?'].map(q=>`<button onclick="document.getElementById('cop-in-full').value='${q}'" style="font-size:11px;padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer">${q}</button>`).join('')}
+</div>
+</div>`,
+
+'alloc':`
+<div class="sl">Lead Allocation Engine · BD_Score formula · runs daily · surfaces to Daily Review</div>
+<div class="fbox">BD_Score = (Real_CVR × 0.4) + (Chase_Compliance × 0.25) + (Lead_Penetration × 0.2) + (1 − Manipulation_Score/100 × 0.15)
+Source: v_bd_daily_summary · v_manipulation_scores · leads · followups</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">BD Allocation Scores — Today</div><div class="card-actions">${btn('Run Allocation Engine','btn-primary')} ${btn('Export')}</div></div>
+<div class="tw"><table class="t">
+<thead><tr><th>BD</th><th>Real CVR</th><th>Chase %</th><th>Penetration</th><th>Manip. factor</th><th>BD Score</th><th>Score bar</th><th>Current leads</th><th>Recommended</th><th>Δ</th></tr></thead>
+<tbody>
+${[['Priya K.','14.1%','88%','93%','0.94','0.84',84,'#16A34A',280,340,'+60','ku'],
+   ['Ajay M.','12.0%','83%','92%','0.91','0.78',78,'#16A34A',260,300,'+40','ku'],
+   ['Sneha G.','9.2%','70%','89%','0.86','0.67',67,'#7C3AED',245,260,'+15',''],
+   ['Neha R.','7.8%','65%','82%','0.78','0.61',61,'#7C3AED',230,230,'0',''],
+   ['Kabir D.','7.2%','57%','79%','0.72','0.55',55,'#D97706',220,200,'−20','kw'],
+   ['Varun T.','3.2%','41%','59%','0.29','0.28',28,'#C0392B',218,100,'−118','kd'],
+   ['Rahul S.*','4.1%*','38%','53%','0.12','0.18',18,'#C0392B',210,0,'−210 freeze','kd']
+].map(([n,cvr,ch,pen,mf,score,pct,clr,cur,rec,d,dc])=>`<tr>
+  <td style="font-weight:500">${n}</td><td>${cvr}</td><td>${ch}</td><td>${pen}</td><td>${mf}</td>
+  <td class="${dc}" style="font-weight:700">${score}</td>
+  <td>${sbar(pct,clr)}</td>
+  <td>${cur}</td><td class="${dc}" style="font-weight:600">${rec}</td><td class="${dc}">${d}</td>
+</tr>`).join('')}
+</tbody></table></div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">Reallocation triggers — today's status</div></div>
+${[['Triggered','Uncontacted rate >35%','Rahul S. (47%) + Varun T. (41%) both triggered. Freeze Rahul S., reduce Varun T. by 118 leads.','b-p0'],
+   ['Triggered','0 sales in 7d + connected <40%','Varun T. — 0 sales, 38% connection rate. Reallocate 118 leads: 80→Priya K., 38→Ajay M.','b-p0'],
+   ['Triggered','TL with >3 BDs uncontacted >30%','Meena V.: 3 BDs (47%, 41%, 32%) all above 30%. TL coaching alert generated.','b-p1'],
+   ['Watch','Source leads uncontacted >48h','Facebook Jun 9 batch: 84 leads uncontacted 48h+. Recommend →Priya K. (60) + Ajay M. (24).','b-warn']
+].map(([status,thr,action,sc])=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)"><div style="min-width:100px">${badge(status,sc)}</div><div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${thr}</div><div style="font-size:12px;color:var(--muted)">${action}</div></div></div>`).join('')}
+</div>`,
+
+'call':`
+<div class="sl">Call quality · calls.recording_url analysed by AI · 6-dimension scoring rubric</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Scoring rubric — per recording</div></div>
+<table class="t"><thead><tr><th>Dimension</th><th>Weight</th><th>Description</th><th>Low signal</th></tr></thead>
+<tbody>
+  <tr><td style="font-weight:500">Opening score</td><td>10%</td><td>Name, purpose, empathy opener</td><td>Jumps to pitch without context</td></tr>
+  <tr><td style="font-weight:500">Needs discovery</td><td>20%</td><td>Prep stage, attempt number, target asked</td><td>Monologue — no questions to lead</td></tr>
+  <tr><td style="font-weight:500">Program pitch</td><td>20%</td><td>Right program recommended, clearly explained</td><td>Generic pitch, wrong course</td></tr>
+  <tr><td style="font-weight:500">Objection handling</td><td class="ku">25%</td><td>Fee, time, credibility objections addressed</td><td>Loses call at fee mention — highest weight</td></tr>
+  <tr><td style="font-weight:500">Closing score</td><td>15%</td><td>Explicit close attempt, urgency created</td><td>Conversation trails off, no close</td></tr>
+  <tr><td style="font-weight:500">CRM accuracy</td><td>10%</td><td>CRM update matches actual call outcome</td><td>Pipeline accuracy &lt;70%</td></tr>
+</tbody></table></div>
+<div class="g2">
+  <div class="card"><div class="card-hdr"><div class="card-title">BD call scores MTD</div></div>
+    <table class="t"><thead><tr><th>BD</th><th>Score</th><th>Trend</th><th>Weakest dim.</th></tr></thead>
+    <tbody>
+      <tr><td>Priya K.</td><td class="ku" style="font-weight:700">7.8/10</td><td class="ku">↑ +0.4</td><td>Closing (6.2)</td></tr>
+      <tr><td>Ajay M.</td><td class="ku" style="font-weight:700">7.2/10</td><td>→ flat</td><td>Needs discovery</td></tr>
+      <tr><td>Sneha G.</td><td style="font-weight:700">6.4/10</td><td class="kw">↓ −0.3</td><td>Objection handling</td></tr>
+      <tr><td>Varun T.</td><td class="kw" style="font-weight:700">4.1/10</td><td class="kd">↓ −1.2</td><td>Program pitch</td></tr>
+      <tr><td>Rahul S.</td><td class="kd" style="font-weight:700">2.1/10</td><td class="kd">↓ −3.1</td><td>All dims (hang-up)</td></tr>
+    </tbody></table>
+  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Sentiment analysis · last 48h</div></div>
+    ${[['Lead sentiment positive','42%','ku'],['Lead sentiment neutral','38%',''],['Lead sentiment negative','20%','kd'],['Avg BD tone score','6.8/10',''],['Avg energy level','5.4/10','kw'],['Avg pace (wpm)','148 wpm',''],['Recordings scored today','84','ku']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+  </div>
+</div>`,
+
+'daily':`
+<div class="sl">Auto-generated 9:00 AM · Jun 11, 2026 · AI Analyst Agent — all 6 materialized views queried</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Section 1 — Yesterday (Jun 10)</div></div>
+<table class="t"><thead><tr><th>Metric</th><th>Yesterday</th><th>MTD</th><th>vs Target</th></tr></thead>
+<tbody>
+  <tr><td>Leads assigned</td><td>142</td><td>2,841</td><td class="ku">+8% vs plan</td></tr>
+  <tr><td>Leads contacted</td><td>108</td><td>2,103</td><td class="kw">−3% vs plan</td></tr>
+  <tr><td>Sales</td><td>18</td><td>236</td><td>On track</td></tr>
+  <tr><td>Revenue (net)</td><td>₹14.0L</td><td>₹1.84Cr</td><td class="kw">₹1.3L below daily required</td></tr>
+  <tr><td>Collections</td><td>₹8.2L</td><td>₹1.84Cr</td><td class="ku">On track</td></tr>
+  <tr><td>Follow-ups done</td><td>62/148</td><td>54%</td><td class="kd">Below 60% threshold</td></tr>
+</tbody></table></div>
+<div class="g2">
+  <div class="card"><div class="card-hdr"><div class="card-title">Section 2 — Stars</div></div>
+    ${[['Top BD — revenue','Priya K. · ₹3.1L'],['Top BD — real CVR','Priya K. · 16.2%'],['Top TL — team CVR','Anand R. · 10.8%'],['Top source — ROI','Facebook · 923%'],['Best new cohort','Jun10 Facebook · 12.1%']].map(([l,v])=>`<div class="mrow"><span class="ml">${l}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${v}</span></div>`).join('')}
+  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Section 3 — Red flags</div></div>
+    ${[['149 FU missed — Rahul S. (48) + Varun T. (41) = 60%','var(--accent)'],['3 manip. flags: Rahul S. 88 (P0), Varun T. 71 (P1), Dev P. 34','var(--accent)'],['Collection rate 84% — 6pt below 90% target','var(--warning)'],['22 leads crossed 15-day stale threshold today','var(--warning)']].map(([t,c])=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border)"><i class="ti ti-alert-triangle" style="font-size:13px;color:${c};flex-shrink:0;margin-top:1px"></i><div style="font-size:12px;color:var(--text);line-height:1.5">${t}</div></div>`).join('')}
+  </div>
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Section 4 — Today's action items</div><div class="card-actions">${btn('Export to PDF')}</div></div>
+<table class="t"><thead><tr><th>Action</th><th>Detail</th><th>Owner</th><th>Priority</th><th>Status</th></tr></thead>
+<tbody>
+  <tr><td style="font-weight:500">Freeze Rahul S.</td><td>Score 88 — auto-escalated. Reallocate 54 leads. PIP doc today.</td><td>Meena V.</td><td>${badge('P0','b-p0')}</td><td>${badge('Pending','b-warn')}</td></tr>
+  <tr><td style="font-weight:500">Escalate 34 hot FU misses</td><td>Hot leads >24h overdue. Reassign Arjun S. + Divya R. immediately.</td><td>All TLs</td><td>${badge('P0','b-p0')}</td><td>${badge('Pending','b-warn')}</td></tr>
+  <tr><td style="font-weight:500">Reallocate Varun T. leads</td><td>Score 0.28 · 0 sales 7d. Move 118 leads: 80→Priya K., 38→Ajay M.</td><td>Rev Ops</td><td>${badge('P1','b-p1')}</td><td>${badge('In progress','b-p2')}</td></tr>
+  <tr><td style="font-weight:500">Budget reallocation</td><td>Cut WhatsApp ₹80K/wk → Facebook. Expected +₹4.8L.</td><td>Marketing</td><td>${badge('P1','b-p1')}</td><td>${badge('Pending','b-warn')}</td></tr>
+  <tr><td style="font-weight:500">Collection chase</td><td>Arjun Singh ₹60K (10d) · Rahul Verma ₹90K (32d — default risk).</td><td>Finance</td><td>${badge('P1','b-p1')}</td><td>${badge('Pending','b-warn')}</td></tr>
+</tbody></table></div>`,
+
+'tl':`
+<div class="sl">Team leader dashboard</div>
+<div class="card"><div class="card-hdr"><div class="card-title">TL Performance</div></div>
+<table class="t"><thead><tr><th>Team leader</th><th>BDs</th><th>Leads</th><th>Penetration %</th><th>Team CVR %</th><th>Real CVR %</th><th>Revenue</th><th>Chase %</th><th>Coaching score</th></tr></thead>
+<tbody>
+  <tr><td style="font-weight:600">Anand R.</td><td>5</td><td>1,298</td><td class="ku">83%</td><td>9.6%</td><td class="ku">12.4%</td><td>₹72.1L</td><td>72%</td><td class="ku">74/100</td></tr>
+  <tr><td style="font-weight:600">Meena V.</td><td>4</td><td>982</td><td class="kd">68%</td><td>5.8%</td><td class="kw">7.2%</td><td>₹44.3L</td><td>56%</td><td class="kw">48/100</td></tr>
+</tbody></table></div>
+<div class="g2">
+  <div class="card"><div class="card-hdr"><div class="card-title">Anand R. — Actions</div></div>
+    <div style="font-size:12px;color:var(--text);padding:8px 0;border-bottom:0.5px solid var(--border)">${badge('P1','b-p1')} &nbsp;Varun T. BD score 0.28 — reduce leads by 118. Reallocate to Priya K. (capacity: +60).</div>
+    <div style="font-size:12px;color:var(--text);padding:8px 0">${badge('P2','b-p2')} &nbsp;Kabir D. chase 57% — below 80% target. 1:1 coaching this week.</div>
+  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Meena V. — Actions</div></div>
+    <div style="font-size:12px;color:var(--text);padding:8px 0;border-bottom:0.5px solid var(--border)">${badge('P0','b-p0')} &nbsp;Rahul S. score 88 — freeze + audit + PIP today.</div>
+    <div style="font-size:12px;color:var(--text);padding:8px 0;border-bottom:0.5px solid var(--border)">${badge('P1','b-p1')} &nbsp;3 BDs with uncontacted >30% → TL coaching alert triggered.</div>
+    <div style="font-size:12px;color:var(--text);padding:8px 0">${badge('P1','b-p1')} &nbsp;Team penetration 68% — 12pt below 80% target.</div>
+  </div>
+</div>`,
+
+'rev':`<div class="sl">Revenue intelligence · sales table</div>
+<div class="kgrid">
+  ${kcard('Gross Revenue','₹2.09Cr','All confirmed orders','nt','g','1.7,1.8,1.85,1.9,1.95,2.02,2.09')}
+  ${kcard('Net Collected','₹1.84Cr','Gross − waivers − refunds','nt','y','1.5,1.58,1.64,1.70,1.76,1.81,1.84')}
+  ${kcard('Waivers','₹11.1L','18 MTD · Alert >5% of gross','dn','y','6,7,8,9,10,10.5,11.1')}
+  ${kcard('Refunds','₹14.2L','18 reversed orders','dn','r','8,9,10,11,12,13.5,14.2')}
+  ${kcard('Revenue Gap %','12.0%','Alert threshold >15%','dn','y','9,9.5,10,10.5,11,11.5,12')}
+  ${kcard('Avg Ticket (net)','₹77.9K','Net / sales count','up','g','72,73,74,75,76,77,77.9')}
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Revenue attribution — BD / TL / Source</div></div>
+<div class="tw"><table class="t"><thead><tr><th>Entity</th><th>Type</th><th>Revenue</th><th>% of net</th><th>Rev/lead</th><th>Rev/connected lead</th><th>Rev/talktime hr</th></tr></thead>
+<tbody>
+  <tr><td style="font-weight:500">Anand R.</td><td>TL</td><td>₹72.1L</td><td>39.2%</td><td>₹5,554</td><td>₹6,690</td><td>₹11,240</td></tr>
+  <tr><td style="font-weight:500">Priya K.</td><td>BD</td><td>₹30.4L</td><td class="ku">16.5%</td><td>₹10,857</td><td>₹11,014</td><td>₹33,043</td></tr>
+  <tr><td style="font-weight:500">Facebook Ads</td><td>Source</td><td>₹49.7L</td><td>27.0%</td><td>₹7,266</td><td>₹8,270</td><td>—</td></tr>
+  <tr><td style="font-weight:500">Organic SEO</td><td>Source</td><td>₹33.4L</td><td>18.2%</td><td>₹4,507</td><td>₹6,523</td><td>—</td></tr>
+</tbody></table></div></div>`,
+
+'col':`<div class="sl">Collections · collections table</div>
+<div class="kgrid">
+  ${kcard('Total Fees Due','₹2.19Cr','All enrolled','nt','g','1.8,1.9,2.0,2.05,2.1,2.15,2.19')}
+  ${kcard('Total Collected','₹1.84Cr','84% collection rate','nt','y','1.5,1.58,1.64,1.70,1.76,1.81,1.84')}
+  ${kcard('Collection Rate','84%','Target ≥90%','dn','y','88,87,87,86,86,85,84')}
+  ${kcard('Overdue >7 days','₹18.4L','38 students','dn','r','10,12,13,14,15,17,18.4')}
+  ${kcard('Overdue >30 days','₹6.2L','11 at-risk churn','dn','r','2,3,4,4.5,5,5.8,6.2')}
+  ${kcard('EMI Default Rate','8.3%','7 of 84 plans','dn','y','4,5,5.5,6,6.5,7.5,8.3')}
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Student collection table — overdue cases</div></div>
+<div class="tw"><table class="t"><thead><tr><th>Student</th><th>BD</th><th>Fee due</th><th>Collected</th><th>Balance</th><th>Days overdue</th><th>Status</th></tr></thead>
+<tbody>
+  <tr><td>Arjun Singh</td><td>Priya K.</td><td>₹1,20,000</td><td>₹60,000</td><td>₹60,000</td><td class="kd">10d</td><td>${badge('Overdue','b-bad')}</td></tr>
+  <tr><td>Sneha Patel</td><td>Ajay M.</td><td>₹75,000</td><td>₹37,500</td><td>₹37,500</td><td class="kd">6d</td><td>${badge('Overdue','b-bad')}</td></tr>
+  <tr><td>Rahul Verma</td><td>Sneha G.</td><td>₹1,80,000</td><td>₹90,000</td><td>₹90,000</td><td class="kd">32d</td><td>${badge('Defaulted','b-bad')}</td></tr>
+  <tr><td>Divya Kumar</td><td>Neha R.</td><td>₹45,000</td><td>₹45,000</td><td>₹0</td><td>—</td><td>${badge('On track','b-ok')}</td></tr>
+</tbody></table></div></div>`,
+
+'crm':`<div class="sl">CRM discipline · calls.crm_logged + calls.crm_log_time</div>
+<div class="kgrid">
+  ${kcard('Update Compliance','61%','Target ≥80%','dn','y','72,70,68,67,65,63,61')}
+  ${kcard('Avg Update Lag','3.4h','Target <2h','dn','y','1.8,2.1,2.4,2.7,2.9,3.2,3.4')}
+  ${kcard('No Notes (7d)','418','Alert: any','dn','r','280,310,340,360,380,400,418')}
+  ${kcard('Pipeline Accuracy','72%','CRM vs actual','dn','y','80,78,77,76,75,74,72')}
+  ${kcard('Data Quality Score','64/100','Target ≥80%','dn','y','74,72,71,70,69,67,64')}
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">BD CRM discipline table</div></div>
+<div class="tw"><table class="t"><thead><tr><th>BD</th><th>Calls logged</th><th>Notes added</th><th>Compliance %</th><th>Avg lag</th><th>Pipeline acc. %</th><th>CRM score</th></tr></thead>
+<tbody>
+  <tr><td>Priya K.</td><td>148</td><td>141</td><td class="ku">95%</td><td>0.8h</td><td class="ku">94%</td><td class="ku">91/100</td></tr>
+  <tr><td>Ajay M.</td><td>131</td><td>119</td><td class="ku">91%</td><td>1.2h</td><td>88%</td><td class="ku">86/100</td></tr>
+  <tr><td>Sneha G.</td><td>112</td><td>94</td><td>84%</td><td>1.9h</td><td>81%</td><td>78/100</td></tr>
+  <tr><td>Varun T.</td><td>88</td><td>41</td><td class="kd">47%</td><td>4.1h</td><td class="kd">58%</td><td class="kd">38/100</td></tr>
+  <tr><td>Rahul S.*</td><td>44*</td><td>28</td><td class="kd">15%</td><td>7.2h</td><td class="kd">31%</td><td class="kd">12/100</td></tr>
+</tbody></table></div></div>`,
+
+'dailycalls':`
+<div class="sl">Day-wise calls per BD · bd_daily_calls · last 14 days · live</div>
+<div class="filters-bar">
+  <div class="filter-group"><span class="filter-label">BD:</span>
+    <select class="fsel" id="dwc-bd" onchange="loadDailyCalls()">
+      <option value="">All BDs</option>
+      <option value="bd_priya">Priya K.</option>
+      <option value="bd_ajay">Ajay M.</option>
+      <option value="bd_sneha">Sneha G.</option>
+      <option value="bd_neha">Neha R.</option>
+      <option value="bd_kabir">Kabir D.</option>
+      <option value="bd_varun">Varun T.</option>
+      <option value="bd_rahul">Rahul S.</option>
+      <option value="bd_dev">Dev P.</option>
+    </select>
+  </div>
+  <div class="filter-group"><span class="filter-label">Days:</span>
+    <select class="fsel" id="dwc-days" onchange="loadDailyCalls()">
+      <option value="7">Last 7</option>
+      <option value="14" selected>Last 14</option>
+      <option value="30">Last 30</option>
+    </select>
+  </div>
+</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">Calls per BD per day</div><div class="card-sub" id="dwc-asof">Loading…</div></div>
+<div class="tw"><table class="t" id="dwc-table">
+<thead><tr><th>BD</th><th>Date</th><th>Total calls</th><th>Connected</th><th>Zero-sec</th><th>Talktime (min)</th><th>Unique leads</th></tr></thead>
+<tbody><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Loading day-wise call data…</td></tr></tbody>
+</table></div>
+</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">Connected calls trend</div><div class="card-sub">Per BD, per day</div></div>
+<div class="cw" style="height:220px"><canvas id="dwcChart"></canvas></div>
+</div>`,
+
+'uncalled':`
+<div class="sl">Uncalled leads · age buckets + 15-day day-wise grid · live from uncalled_leads</div>
+<div class="kgrid" id="uncalled-buckets">
+  <div class="kcard" style="cursor:default"><div class="kcard-bar g"></div><div class="kcard-label">Loading buckets…</div><div class="kcard-val">—</div></div>
+</div>
+<div class="filters-bar">
+  <div class="filter-group"><span class="filter-label">Bucket:</span>
+    <select class="fsel" id="uc-bucket" onchange="loadUncalled()">
+      <option value="">All</option>
+      <option value="0-1d">0-1 day</option>
+      <option value="2-3d">2-3 days</option>
+      <option value="4-7d">4-7 days</option>
+      <option value="8-15d">8-15 days</option>
+      <option value="15+d" selected>15+ days</option>
+    </select>
+  </div>
+  <div class="filter-group"><span class="filter-label">BD:</span>
+    <select class="fsel" id="uc-bd" onchange="loadUncalled()">
+      <option value="">All BDs</option>
+      <option value="bd_priya">Priya K.</option>
+      <option value="bd_ajay">Ajay M.</option>
+      <option value="bd_sneha">Sneha G.</option>
+      <option value="bd_neha">Neha R.</option>
+      <option value="bd_kabir">Kabir D.</option>
+      <option value="bd_varun">Varun T.</option>
+      <option value="bd_rahul">Rahul S.</option>
+      <option value="bd_dev">Dev P.</option>
+    </select>
+  </div>
+</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">By BD × age bucket</div></div>
+<div class="tw"><table class="t" id="uc-bybd-table">
+<thead><tr><th>BD</th><th>Bucket</th><th>Leads</th></tr></thead>
+<tbody><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Loading…</td></tr></tbody>
+</table></div>
+</div>
+<div class="card">
+<div class="card-hdr"><div class="card-title">Lead detail — last call date + 15-day uncalled grid</div><div class="card-sub">Each cell = one day · red = uncalled that day · green = had a connected call</div></div>
+<div class="tw"><table class="t" id="uc-detail-table">
+<thead><tr><th>Lead</th><th>BD</th><th>Last call</th><th>Days since</th><th>Bucket</th><th colspan="15" style="text-align:center">Last 15 days (newest → oldest)</th></tr></thead>
+<tbody><tr><td colspan="20" style="text-align:center;color:var(--muted);padding:20px">Select a bucket/BD above…</td></tr></tbody>
+</table></div>
+</div>`,
+
+'settings':`
+<div class="sl">Connector settings · API keys stored server-side only · never embedded in this HTML</div>
+<div class="card" style="background:#FEF9E7;border-color:#FBEEC1">
+  <div style="display:flex;gap:10px;align-items:flex-start">
+    <i class="ti ti-shield-lock" style="font-size:18px;color:var(--gold);flex-shrink:0;margin-top:2px"></i>
+    <div style="font-size:12px;color:var(--text);line-height:1.6">
+      <strong>How this works:</strong> keys you enter below are sent once to your backend and stored in <code>db/riscc.sqlite</code> (table <code>api_settings</code>).
+      They are never written into this HTML/JS file and never sent back to the browser in full — only a masked preview (e.g. <code>sk-a••••••••wXyz</code>) is shown.
+      You can deploy this HTML publicly without exposing credentials, as long as your backend itself is not publicly readable (keep <code>/api/settings</code> behind <code>ADMIN_TOKEN</code> — see README).
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hdr"><div class="card-title">Admin token</div><div class="card-sub">Only needed if your backend has ADMIN_TOKEN set in .env</div></div>
+  <div class="filter-group">
+    <span class="filter-label" style="min-width:90px">Token:</span>
+    <input type="password" id="admin-token-input" placeholder="Paste ADMIN_TOKEN if your backend requires it" style="flex:1;font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg)"/>
+    <button class="btn-sm btn-primary" onclick="saveAdminToken()">Save in this browser</button>
+  </div>
+  <div style="font-size:11px;color:var(--muted);margin-top:6px">Stored only in this browser's localStorage — sent as a Bearer token to /api/settings and /api/sync.</div>
+</div>
+
+<div id="settings-cards">
+  <div class="card">Loading connector settings…</div>
+</div>
+
+<div class="card">
+  <div class="card-hdr"><div class="card-title">Manual sync</div><div class="card-sub">Trigger a pull from a connector right now (also runs automatically every 15 min)</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap" id="sync-buttons"></div>
+  <div id="sync-result" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
+</div>`,
+
+'schema':`
+<div class="sl">Database schema · 7 core tables · 6 materialized views · 15-min refresh</div>
+<div class="g2">
+${[['leads','Primary entity','16 fields',
+    fr('lead_id','VARCHAR(50)','Unique lead identifier from CRM',['PK'])+
+    fr('phone_normalized','VARCHAR(15)','Phone stripped to 10 digits',['IDX'])+
+    fr('crm_id','VARCHAR(50)','CRM system ID for matching',[])+
+    fr('email','VARCHAR(100)','Lowercase normalized',[])+
+    fr('name','VARCHAR(100)','Lead name',[])+
+    fr('source','VARCHAR(50)','Lead generation source',[])+
+    fr('campaign_id','VARCHAR(50)','References campaigns',['FK'])+
+    fr('state','VARCHAR(50)','State/region',[])+
+    fr('category','VARCHAR(50)','Fresh/Repeat/Referral',[])+
+    fr('assigned_bd_id','VARCHAR(50)','References bds',['FK'])+
+    fr('assigned_date','DATETIME','When pushed to BD',[])+
+    fr('status','ENUM','Open/Interested/Proposal/Converted/Lost',[])+
+    fr('temperature','ENUM','Hot/Warm/Cold',[])+
+    fr('last_call_date','DATETIME','Most recent connected call',[])+
+    fr('last_crm_update','DATETIME','Most recent CRM activity',[])+
+    fr('created_at','DATETIME','Record creation',['IDX'])
+   ],
+  ['calls','Call activity','9 fields',
+    fr('call_id','VARCHAR(50)','Unique call ID from OCRM',['PK'])+
+    fr('lead_id','VARCHAR(50)','References leads',['FK','IDX'])+
+    fr('bd_id','VARCHAR(50)','References bds',['FK','IDX'])+
+    fr('call_timestamp','DATETIME','Exact call time',['IDX'])+
+    fr('duration_seconds','INT','0 = not connected; >30s = connected',[])+
+    fr('outcome','VARCHAR(50)','Connected/Not Connected/Busy/No Answer',[])+
+    fr('recording_url','TEXT','Link to recording',[])+
+    fr('crm_logged','BOOLEAN','Logged in CRM?',[])+
+    fr('crm_log_time','DATETIME','When BD logged the call',['IDX'])
+   ],
+  ['sales','Orders & revenue','10 fields',
+    fr('order_id','VARCHAR(50)','Unique order ID',['PK'])+
+    fr('lead_id','VARCHAR(50)','References leads',['FK'])+
+    fr('bd_id','VARCHAR(50)','Selling BD',['FK'])+
+    fr('course_id','VARCHAR(50)','Course enrolled',['FK'])+
+    fr('gross_amount','DECIMAL(10,2)','Full fee agreed',[])+
+    fr('waiver_amount','DECIMAL(10,2)','Discount granted',[])+
+    fr('net_amount','DECIMAL(10,2)','gross − waiver',[])+
+    fr('sale_date','DATETIME','Order confirmation date',['IDX'])+
+    fr('payment_type','ENUM','Full/EMI/Partial',[])+
+    fr('status','ENUM','Confirmed/Refunded/On Hold',['IDX'])
+   ],
+  ['followups','FU tracking','7 fields',
+    fr('followup_id','VARCHAR(50)','Unique ID',['PK'])+
+    fr('lead_id','VARCHAR(50)','Lead for this FU',['FK'])+
+    fr('bd_id','VARCHAR(50)','BD responsible',['FK'])+
+    fr('scheduled_date','DATETIME','Committed FU date',['IDX'])+
+    fr('actual_followup_date','DATETIME','Matched from calls (±4h)',[])+
+    fr('gap_hours','DECIMAL(5,1)','actual − scheduled, target 0',[])+
+    fr('status','ENUM','Pending/Done/Missed',[])
+   ]
+].map(([name,sub,cnt,fields])=>`<div class="tbl-card"><div class="tbl-hdr"><span class="tbl-name">${name}</span><span style="font-size:11px;color:var(--muted)">${sub} · ${cnt}</span></div>${fields}</div>`).join('')}
+</div>
+<div class="g2">
+${[['bds','BD roster','8 fields',
+    fr('bd_id','VARCHAR(50)','BD identifier',['PK'])+
+    fr('name','VARCHAR(100)','Full name',[])+
+    fr('team_leader_id','VARCHAR(50)','References team_leaders',['FK'])+
+    fr('team_id','VARCHAR(50)','References teams',['FK'])+
+    fr('join_date','DATE','Employment start',[])+
+    fr('status','ENUM','Active/Inactive',[])+
+    fr('monthly_target_revenue','DECIMAL(10,2)','Revenue target',[])+
+    fr('monthly_target_sales','INT','Sales count target',[])
+   ],
+  ['campaigns','Source budgets','7 fields',
+    fr('campaign_id','VARCHAR(50)','Unique campaign ID',['PK'])+
+    fr('name','VARCHAR(100)','Campaign name',[])+
+    fr('source','VARCHAR(50)','Channel',[])+
+    fr('spend','DECIMAL(10,2)','Total spend',[])+
+    fr('start_date','DATE','Campaign start',[])+
+    fr('end_date','DATE','Campaign end (NULL=ongoing)',[])+
+    fr('leads_generated','INT','Computed lead count',[])
+   ],
+  ['collections','Payment tracking','7 fields',
+    fr('collection_id','VARCHAR(50)','Unique ID',['PK'])+
+    fr('order_id','VARCHAR(50)','References sales',['FK'])+
+    fr('amount_due','DECIMAL(10,2)','Expected payment',[])+
+    fr('amount_collected','DECIMAL(10,2)','Actual received',[])+
+    fr('due_date','DATE','Payment due date',['IDX'])+
+    fr('payment_date','DATE','Actual payment (NULL=unpaid)',[])+
+    fr('status','ENUM','Paid/Overdue/Partial/Defaulted',['IDX'])
+   ]
+].map(([name,sub,cnt,fields])=>`<div class="tbl-card"><div class="tbl-hdr"><span class="tbl-name">${name}</span><span style="font-size:11px;color:var(--muted)">${sub} · ${cnt}</span></div>${fields}</div>`).join('')}
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">6 Materialized views — refresh every 15 minutes</div></div>
+${[['v_bd_daily_summary','BD performance pages','Per BD per day: all KPIs pre-aggregated. Eliminates joins across calls, leads, sales, followups on every load.',
+    `SELECT bd_id, DATE(call_timestamp) as date,
+  COUNT(*) as total_calls,
+  SUM(CASE WHEN duration_seconds>30 THEN 1 ELSE 0 END) as connected_calls,
+  SUM(duration_seconds)/3600 as talktime_hours
+FROM calls JOIN leads USING(lead_id)
+GROUP BY bd_id, DATE(call_timestamp)`],
+   ['v_lead_lifecycle','Lead leakage + funnel','Per lead: full journey from assignment → outcome. Powers leakage categories and cohort.',
+    `SELECT l.lead_id, l.assigned_date, l.status, l.temperature,
+  MIN(c.call_timestamp) as first_call, MAX(c.call_timestamp) as last_call,
+  COUNT(c.call_id) as total_calls, s.sale_date, s.net_amount
+FROM leads l LEFT JOIN calls c USING(lead_id) LEFT JOIN sales s USING(lead_id)
+GROUP BY l.lead_id`],
+   ['v_source_performance','Source analysis','Per source: CPL, CVR, revenue, ROI. Joins campaigns → leads → calls → sales.',
+    `SELECT c.source, c.spend, COUNT(l.lead_id) as leads_generated,
+  c.spend / NULLIF(COUNT(l.lead_id),0) as cpl,
+  COUNT(s.order_id)*100.0/NULLIF(COUNT(l.lead_id),0) as cvr_pct,
+  SUM(s.net_amount) as revenue
+FROM campaigns c JOIN leads l USING(campaign_id) LEFT JOIN sales s USING(lead_id)
+GROUP BY c.source`],
+   ['v_manipulation_scores','Anti-manipulation engine','Per BD: daily score with all 6 signal components. >60 = flagged, >80 = auto-escalate.',
+    `SELECT bd_id, DATE(call_timestamp) as date,
+  SUM(CASE WHEN duration_seconds=0 THEN 1 ELSE 0 END)*100/COUNT(*) as zero_sec_pct,
+  -- + rapid-dial, ghost-FU, after-hours, avg-duration, CVR-inflation signals
+  [weighted_score_formula] as manipulation_score
+FROM calls GROUP BY bd_id, DATE(call_timestamp)`],
+   ['v_forecast_inputs','Forecast dashboard','Run rate, pipeline, collections, adjustment factor — all 4 components.',
+    `SELECT
+  AVG(daily_net_revenue)*remaining_days as run_rate_component,
+  active_leads*rolling_cvr_30d*avg_net_ticket as pipeline_component,
+  SUM(emi_due_this_month)*0.84 as collection_component,
+  CASE WHEN cvr_trending_up THEN 0.05
+       WHEN cvr_trending_down THEN -0.05
+       WHEN manipulation_detected THEN -0.10
+       ELSE 0 END as adjustment_factor
+FROM [aggregated_daily_metrics]`],
+   ['v_followup_status','Follow-up + daily review','Open FUs with overdue flag, days overdue, revenue at risk per temperature.',
+    `SELECT f.followup_id, f.lead_id, f.bd_id, f.scheduled_date, f.status,
+  DATEDIFF(NOW(), f.scheduled_date) as days_overdue, l.temperature,
+  CASE WHEN l.temperature='Hot' THEN 0.184
+       WHEN l.temperature='Warm' THEN 0.092
+       ELSE 0.031 END * 77900 as revenue_at_risk
+FROM followups f JOIN leads l USING(lead_id)
+WHERE f.status IN ('Pending','Missed')`]
+].map(([name,dash,desc,sql])=>`<div class="view-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div class="view-name">${name}</div><span class="badge b-p2">${dash}</span></div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">${desc}</div><div class="view-sql">${sql}</div></div>`).join('')}
+</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Build sequence — Doc 6, §6</div></div>
+<table class="t"><thead><tr><th>Phase</th><th>Build order</th><th>Deliverable</th></tr></thead>
+<tbody>
+  ${[['1 — Foundation','Database schema + ETL + data connections','Live data in all tables'],['2 — Global Filters','Filter bar + date logic + dropdowns','All filters working'],['3 — Level 1','Command Center + KPI cards + red flags','Management ready Day 1'],['4 — Level 2','BD + TL + Source + FU + Productivity + Leakage + CRM','Full sales ops visible'],['5 — Level 3','Revenue + Collections + Funnel + Cohort + Forecast','Revenue intel live'],['6 — Level 4','AI Analyst + Coaching + Copilot + Allocation','AI layer active'],['7 — Level 5','Call Quality + recording integration','Call intel live'],['8 — Daily Review','Auto-generated morning brief + scheduling','Operational rhythm set']].map(([p,b,d])=>`<tr><td style="font-weight:500">${p}</td><td>${b}</td><td class="ku">${d}</td></tr>`).join('')}
+</tbody></table></div>`
+};
+
+// ── Chart inits ───────────────────────────────────────────────────────
+function initC(page){
+  if(page==='exec'){
+    charts.rev=new Chart(document.getElementById('revChart'),{
+      type:'bar',data:{labels:['5 Jun','6 Jun','7 Jun','8 Jun','9 Jun','10 Jun','11 Jun'],datasets:[
+        {label:'Net Revenue',data:[8.2,9.1,7.4,11.3,8.8,14.0,9.6],backgroundColor:'#2E5FA3',borderRadius:5,borderSkipped:false},
+        {label:'Target',data:[9.3,9.3,9.3,9.3,9.3,9.3,9.3],type:'line',borderColor:'#C0392B',borderDash:[5,3],pointRadius:0,fill:false,tension:0,borderWidth:2}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},callback:v=>'₹'+v+'L'}}}}
+    });
+    charts.gauge=new Chart(document.getElementById('gaugeChart'),{
+      type:'doughnut',
+      data:{datasets:[{data:[65.7,34.3],backgroundColor:['#2E5FA3','#E5E7EB'],borderWidth:0,circumference:270,rotation:-135}]},
+      options:{cutout:'78%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{animateRotate:true}}
+    });
+  }
+  if(page==='bd'){
+    charts.q=new Chart(document.getElementById('qc'),{
+      type:'bubble',data:{datasets:[
+        {label:'Star',data:[{x:8.2,y:14.1,r:10},{x:7.1,y:12.0,r:9}],backgroundColor:'rgba(22,163,74,.8)'},
+        {label:'Mid',data:[{x:6.8,y:9.2,r:8},{x:5.2,y:7.8,r:7},{x:4.8,y:7.2,r:7}],backgroundColor:'rgba(124,58,237,.7)'},
+        {label:'Risk',data:[{x:3.1,y:3.2,r:8},{x:1.2,y:4.1,r:9}],backgroundColor:'rgba(192,57,43,.8)'}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:d=>`Real CVR: ${d.raw.y}%`}}},
+        scales:{x:{title:{display:true,text:'Avg call duration (min)',font:{size:10}},min:0,max:12,ticks:{font:{size:10}}},y:{title:{display:true,text:'Real CVR %',font:{size:10}},min:0,max:18,ticks:{font:{size:10}}}}}
+    });
+  }
+  if(page==='source'){
+    const wks=Array.from({length:13},(_,i)=>'W'+(i+1));
+    charts.s=new Chart(document.getElementById('sc'),{
+      type:'line',data:{labels:wks,datasets:[
+        {label:'Facebook',data:[9.1,9.8,10.2,10.8,11.0,10.6,11.2,11.4,10.9,11.1,11.2,11.0,11.2],borderColor:'#16A34A',tension:.4,pointRadius:0,borderWidth:2.5},
+        {label:'Google',data:[8.4,8.9,9.1,9.4,9.6,9.2,9.7,9.5,9.8,9.6,9.7,9.8,9.7],borderColor:'#2E5FA3',tension:.4,pointRadius:0,borderWidth:2},
+        {label:'YouTube',data:[7.2,7.8,8.0,8.4,8.6,8.2,8.8,8.6,8.9,8.7,8.8,8.9,8.8],borderColor:'#7C3AED',tension:.4,pointRadius:0,borderWidth:2},
+        {label:'Organic',data:[6.1,6.4,6.6,6.8,7.0,6.8,6.8,6.9,6.7,6.8,6.8,6.7,6.8],borderColor:'#D97706',tension:.4,pointRadius:0,borderWidth:2},
+        {label:'WhatsApp',data:[5.2,4.8,4.2,3.8,3.6,3.4,3.2,3.1,3.2,3.0,3.1,3.0,3.1],borderColor:'#C0392B',tension:.4,pointRadius:0,borderWidth:2,borderDash:[5,3]}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:10},callback:v=>v+'%'},min:0,max:14}}}
+    });
+  }
+  if(page==='prod') buildHeatmap();
+  if(page==='cohort') buildCohort();
+  initSparks();
+}
+
+// ── Heatmap ───────────────────────────────────────────────────────────
+function buildHeatmap(){
+  const bds=['Priya K.','Ajay M.','Sneha G.','Varun T.','Rahul S.*'];
+  const hrs=Array.from({length:11},(_,i)=>i+8);
+  const data={
+    'Priya K.':[0,3,8,12,9,11,10,8,7,6,2],
+    'Ajay M.':[0,2,7,11,8,10,9,7,6,5,1],
+    'Sneha G.':[0,1,5,9,7,8,8,6,5,4,0],
+    'Varun T.':[0,0,3,4,3,5,4,3,2,1,0],
+    'Rahul S.*':[0,0,1,2,1,1,1,0,1,0,0]
+  };
+  const max=12;
+  const container=document.getElementById('heatmap-container');
+  let html='<div style="display:flex;flex-direction:column;gap:4px;padding:4px 0">';
+  html+='<div style="display:flex;gap:4px"><div style="width:70px"></div>';
+  hrs.forEach(h=>html+=`<div class="hm-label" style="width:28px;text-align:center">${h}h</div>`);
+  html+='</div>';
+  bds.forEach(bd=>{
+    html+=`<div style="display:flex;gap:4px;align-items:center"><div style="width:70px;font-size:11px;color:var(--muted)">${bd}</div>`;
+    data[bd].forEach(v=>{
+      const intensity=v/max;
+      const bg=`rgba(46,95,163,${0.1+intensity*0.85})`;
+      html+=`<div class="hm-cell" style="width:28px;height:28px;background:${bg}" title="${v} calls">${v>0?v:''}</div>`;
+    });
+    html+='</div>';
+  });
+  html+='</div>';
+  container.innerHTML=html;
+}
+
+// ── Cohort grid ───────────────────────────────────────────────────────
+function cvColor(v){
+  if(!v||v===0)return '#F9FAFB';
+  const t=Math.min(v/14,1);
+  const r=Math.round(220-t*120),g=Math.round(220+t*40),b=Math.round(220-t*160);
+  return `rgb(${r},${g},${b})`;
+}
+function cohortCell(v){
+  if(v===null||v===undefined)return `<td style="background:#F9FAFB;color:var(--muted)">—</td>`;
+  const bg=cvColor(v);
+  const fg=v>7?'#fff':v>4?'#333':'#666';
+  return `<td style="background:${bg};color:${fg}">${v.toFixed(1)}%</td>`;
+}
+function buildCohort(){
+  const rows=[
+    {c:'Wk1 Mar',a:498,con:81,w1:3.2,w2:6.8,w3:9.4,w4:11.0,final:11.0,st:'Closed'},
+    {c:'Wk2 Mar',a:512,con:78,w1:2.9,w2:6.1,w3:8.8,w4:10.2,final:10.2,st:'Closed'},
+    {c:'Wk1 Apr',a:544,con:76,w1:3.5,w2:7.2,w3:9.9,w4:null,final:9.9,st:'Open'},
+    {c:'Wk2 Apr',a:521,con:74,w1:3.0,w2:6.4,w3:null,w4:null,final:6.4,st:'Open'},
+    {c:'Wk1 May',a:480,con:72,w1:2.8,w2:null,w3:null,w4:null,final:2.8,st:'Early'},
+    {c:'Wk1 Jun',a:286,con:54,w1:null,w2:null,w3:null,w4:null,final:null,st:'New'},
+  ];
+  const stColors={Closed:'b-ok',Open:'b-p2',Early:'b-warn',New:'b-muted'};
+  document.getElementById('cohort-body').innerHTML=rows.map(r=>`<tr>
+    <td style="font-weight:500">${r.c}</td><td>${r.a}</td><td>${r.con}%</td>
+    ${cohortCell(r.w1)}${cohortCell(r.w2)}${cohortCell(r.w3)}${cohortCell(r.w4)}${cohortCell(r.final)}
+    <td>${badge(r.st,stColors[r.st]||'b-muted')}</td>
+  </tr>`).join('');
+}
+
+async function sendCopFull(){
+  const inp=document.getElementById('cop-in-full');
+  const q=inp.value.trim();if(!q)return;
+  const msgs=document.getElementById('cop-msgs-full');
+  msgs.innerHTML+=`<div class="cmsg cmsg-u" style="margin-top:8px"><span style="color:var(--muted)">You —</span> ${q}</div>`;
+  const thinkingId = 'thinkf-'+Math.random().toString(36).slice(2);
+  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>RISCC —</strong> Thinking…</div>`;
+  msgs.scrollTop=msgs.scrollHeight;inp.value='';
+  const result = await apiPost('/copilot', {question:q});
+  const el = document.getElementById(thinkingId);
+  if(el){
+    el.style.color=''; el.style.fontStyle='';
+    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+  }
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function sortTbl(th){th.textContent=th.textContent.includes('▲')?th.textContent.replace('▲','▼'):th.textContent.replace('▼','▲');}
+
+// ════════════════════════════════════════════════════════════════
+// LIVE DATA LOADERS — fetch from backend and patch the DOM
+// ════════════════════════════════════════════════════════════════
+const BD_NAMES = {bd_priya:'Priya K.',bd_ajay:'Ajay M.',bd_sneha:'Sneha G.',bd_neha:'Neha R.',bd_kabir:'Kabir D.',bd_varun:'Varun T.',bd_rahul:'Rahul S.',bd_dev:'Dev P.'};
+
+const LOADERS = {
+  exec: loadExec,
+  bd: loadBd,
+  source: loadSource,
+  followup: loadFollowup,
+  leakage: loadLeakage,
+  forecast: loadForecast,
+  collections: loadCollectionsPage,
+  col: loadCollectionsPage,
+  funnel: loadFunnel,
+  dailycalls: loadDailyCalls,
+  uncalled: loadUncalled,
+  settings: loadSettings,
+  cop: () => {},
+};
+
+// ── Executive Command Center ─────────────────────────────────────
+async function loadExec(){
+  const d = await api('/exec-summary');
+  if(!d) return;
+  const setVal=(label,val)=>{
+    document.querySelectorAll('.kcard').forEach(c=>{
+      const lbl=c.querySelector('.kcard-label');
+      if(lbl && lbl.textContent.trim()===label){ c.querySelector('.kcard-val').textContent=val; }
+    });
+  };
+  setVal('Net Revenue', fmtCr(d.revenue.net));
+  setVal('Gross Revenue', fmtCr(d.revenue.gross));
+  setVal('Revenue Target', fmtCr(d.revenue.target));
+  setVal('% of Target', d.revenue.pct_of_target+'%');
+  setVal('Total Sales MTD', fmtNum(d.sales.total_mtd));
+  setVal('Real CVR %', d.sales.real_cvr_pct+'%');
+  setVal('Overall CVR %', d.sales.overall_cvr_pct+'%');
+  setVal('Avg Ticket Size', '₹'+(d.sales.avg_ticket/1000).toFixed(1)+'K');
+  setVal('Assigned', fmtNum(d.leads.assigned));
+  setVal('Contacted', fmtNum(d.leads.contacted));
+  setVal('Uncontacted', fmtNum(d.leads.uncontacted));
+  setVal('Stale (15d+)', fmtNum(d.leads.stale_15d_plus));
+  setVal('Revenue at Risk', fmtL(d.revenue_at_risk));
+
+  // revenue trend chart
+  const trend = await api('/revenue-trend');
+  if(trend && charts.rev){
+    charts.rev.data.labels = trend.labels.map(l=>new Date(l).toLocaleDateString('en-IN',{day:'numeric',month:'short'}));
+    charts.rev.data.datasets[0].data = trend.revenue.map(v=>+(v/100000).toFixed(2));
+    charts.rev.data.datasets[1].data = trend.labels.map(()=>+(trend.daily_target/100000).toFixed(2));
+    charts.rev.update();
+  }
+  // gauge
+  if(charts.gauge){
+    const pct = d.revenue.pct_of_target;
+    charts.gauge.data.datasets[0].data = [pct, Math.max(0,100-pct)];
+    charts.gauge.update();
+    const wrap = document.querySelector('.gauge-val');
+    if(wrap) wrap.textContent = pct+'%';
+    const tgt = document.querySelector('.gauge-target');
+    if(tgt) tgt.textContent = `of ${fmtCr(d.revenue.target)} target · ${fmtL(d.revenue.gap_to_target)} gap`;
+  }
+}
+
+// ── BD Performance ────────────────────────────────────────────────
+async function loadBd(){
+  const rows = await api('/bd-performance');
+  if(!rows) return;
+  rows.sort((a,b)=>b.real_cvr_pct - a.real_cvr_pct);
+  const tbody = document.querySelector('#main-content table.t tbody');
+  if(!tbody) return;
+  const statusCls = s=>({'Star':'b-ok','On track':'b-muted','Watch':'b-warn','Reduce':'b-bad','⚠ Freeze':'b-bad'}[s]||'b-muted');
+  const numCls = (v,hi,lo)=> v>=hi?'ku':v<=lo?'kd':'kw';
+  tbody.innerHTML = rows.map(r=>{
+    const scoreClr = r.bd_score>0.7?'#16A34A':r.bd_score>0.5?'#D97706':'#C0392B';
+    return `<tr>
+      <td><a href="#" style="color:var(--primary);text-decoration:none;font-weight:500" onclick="event.preventDefault()">${r.name}</a><br><span style="font-size:10px;color:var(--muted)">TL: ${r.tl}</span></td>
+      <td>${fmtNum(r.assigned)}</td>
+      <td class="${numCls(r.penetration_pct,80,50)}">${r.penetration_pct}%</td>
+      <td>${fmtNum(r.connected_calls)}</td>
+      <td>${r.talktime_hours}h</td>
+      <td class="${numCls(r.chase_pct,70,45)}">${r.chase_pct}%</td>
+      <td>${r.sales}</td>
+      <td class="${numCls(r.real_cvr_pct,10,5)}" style="font-weight:600">${r.real_cvr_pct}%</td>
+      <td style="font-weight:500">${fmtL(r.revenue)}</td>
+      <td class="${r.manipulation_score>60?'kd':r.manipulation_score>30?'kw':'ku'}" style="font-weight:600">${r.manipulation_score}</td>
+      <td>${sbar(Math.round(r.bd_score*100),scoreClr)} <span style="font-size:11px">${r.bd_score}</span></td>
+      <td>${badge(r.status,statusCls(r.status))}</td>
+      <td><div class="td-action">${btn('View')} ${btn('Call')} ${btn('Reassign')}</div></td>
+    </tr>`;
+  }).join('');
+
+  // manipulation table
+  const manip = await api('/manipulation');
+  if(manip){
+    const mtbody = document.querySelectorAll('#main-content table.t tbody')[1];
+    if(mtbody){
+      const mcls = s=>({'Auto-escalate':'b-p0','Flagged':'b-p1','Watch':'b-warn','Clean':'b-ok'}[s]||'b-muted');
+      const scls = v=> v>60?'kd':v>30?'kw':'ku';
+      mtbody.innerHTML = manip.slice(0,6).map(m=>`<tr>
+        <td>${m.name}</td><td class="${scls(m.score)}" style="font-weight:700">${m.score}</td>
+        <td style="font-size:11px">${m.signals.length?m.signals.join(', '):'No signals detected'}</td>
+        <td>${badge(m.status,mcls(m.status))}</td>
+      </tr>`).join('');
+    }
+  }
+}
+
+// ── Source Analysis ──────────────────────────────────────────────
+async function loadSource(){
+  const rows = await api('/source-performance');
+  if(!rows) return;
+  const tbody = document.querySelector('#main-content table.t tbody');
+  if(!tbody) return;
+  rows.sort((a,b)=> (b.roi_pct??1e9) - (a.roi_pct??1e9));
+  tbody.innerHTML = rows.map(r=>{
+    const recCls = {'Increase':'b-ok','Maintain':'b-p2','Cut':'b-bad'}[r.recommendation]||'b-muted';
+    const cvrCls = r.real_cvr_pct>10?'ku':r.real_cvr_pct<4?'kd':'';
+    const roiTxt = r.roi_pct===null?'∞':r.roi_pct+'%';
+    const roiCls = r.roi_pct===null||r.roi_pct>300?'ku':r.roi_pct<100?'kd':'';
+    return `<tr ${r.recommendation==='Cut'?'style="background:#FEF2F2"':''}>
+      <td style="font-weight:500">${r.source}</td><td>${fmtNum(r.leads)}</td><td ${r.cpl>1500?'class="kd"':''}>₹${fmtNum(r.cpl)}</td>
+      <td>${r.cvr_pct}%</td><td class="${cvrCls}">${r.real_cvr_pct}%</td><td>${fmtL(r.revenue)}</td>
+      <td ${r.cac>30000?'class="kd"':''}>₹${fmtNum(r.cac)}</td><td class="${roiCls}">${roiTxt}</td>
+      <td>—</td><td>${badge(r.recommendation,recCls)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Follow-up Intel ──────────────────────────────────────────────
+async function loadFollowup(){
+  const d = await api('/followups');
+  if(!d) return;
+  const setVal=(label,val)=>{
+    document.querySelectorAll('.kcard').forEach(c=>{
+      const lbl=c.querySelector('.kcard-label');
+      if(lbl && lbl.textContent.trim()===label){ c.querySelector('.kcard-val').textContent=val; }
+    });
+  };
+  setVal('Due Today', fmtNum(d.due_today));
+  setVal('Overdue', fmtNum(d.overdue));
+  setVal('Avg FU Gap', d.avg_fu_gap_days+'d');
+  setVal('Chase Compliance', d.chase_compliance_pct+'%');
+  setVal('Done Today', fmtNum(d.done_today));
+  setVal('Hot Leads Missed', fmtNum(d.hot_leads_missed));
+
+  const tbody = document.querySelector('#main-content table.t tbody');
+  if(tbody && d.overdue_table){
+    const tempCls = t=>({'Hot':'b-p0','Warm':'b-p1','Cold':'b-p2'}[t]||'b-muted');
+    tbody.innerHTML = d.overdue_table.slice(0,12).map(r=>`<tr>
+      <td>${r.lead_id}</td><td>${r.bd}</td><td>${new Date(r.scheduled_date).toLocaleDateString('en-IN',{month:'short',day:'numeric'})}</td>
+      <td>—</td><td class="kd" style="font-weight:600">${r.days_overdue}d</td>
+      <td>${badge(r.temperature,tempCls(r.temperature))}</td><td style="font-weight:500">₹${fmtNum(r.revenue_at_risk)}</td>
+      <td><div class="td-action" style="opacity:1">${btn('Reassign','btn-primary')} ${btn('Call Now')}</div></td>
+    </tr>`).join('');
+  }
+}
+
+// ── Lead Leakage ─────────────────────────────────────────────────
+async function loadLeakage(){
+  const d = await api('/leakage');
+  if(!d) return;
+  const setVal=(label,val)=>{
+    document.querySelectorAll('.kcard').forEach(c=>{
+      const lbl=c.querySelector('.kcard-label');
+      if(lbl && lbl.textContent.trim()===label){ c.querySelector('.kcard-val').textContent=val; }
+    });
+  };
+  setVal('Uncontacted >24h', fmtNum(d.uncontacted_24h));
+  setVal('Single-touch lost', fmtNum(d.single_touch_lost));
+  setVal('Stale (15d+)', fmtNum(d.stale_15d));
+  setVal('Ghosted leads', fmtNum(d.ghosted));
+  setVal('Expired hot leads', fmtNum(d.expired_hot));
+  setVal('Total Leakage est.', fmtL(d.total_leakage));
+
+  // mrow values (calculator card)
+  const mrows = document.querySelectorAll('#main-content .mrow .mv');
+  const vals = [d.leakage_breakdown.uncontacted, d.leakage_breakdown.single_touch, d.leakage_breakdown.stale, d.leakage_breakdown.ghosted, d.leakage_breakdown.expired_hot];
+  mrows.forEach((el,i)=>{ if(vals[i]!==undefined) el.textContent = fmtL(vals[i]); });
+  const totalEl = document.querySelector('#main-content .card div[style*="space-between"] span[style*="18px"]');
+  if(totalEl) totalEl.textContent = fmtL(d.total_leakage);
+
+  // by-BD table (second table on page)
+  const tables = document.querySelectorAll('#main-content table.t tbody');
+  if(tables[0] && d.by_bd){
+    tables[0].innerHTML = d.by_bd.slice(0,6).map(r=>{
+      const action = r.total>70?badge('Reduce leads','b-bad'):r.total>30?badge('Monitor','b-warn'):badge('Add leads','b-ok');
+      const cls = r.total>70?'kd':r.total>30?'kw':'ku';
+      return `<tr><td>${r.bd}</td><td class="${cls}">${r.uncontacted}</td><td class="${cls}">${r.stale}</td><td class="${cls}" style="font-weight:600">${r.total}</td><td>—</td><td>${action}</td></tr>`;
+    }).join('');
+  }
+}
+
+// ── Forecast ─────────────────────────────────────────────────────
+async function loadForecast(){
+  const d = await api('/forecast');
+  if(!d) return;
+  const setVal=(label,val)=>{
+    document.querySelectorAll('.kcard').forEach(c=>{
+      const lbl=c.querySelector('.kcard-label');
+      if(lbl && lbl.textContent.trim()===label){ c.querySelector('.kcard-val').textContent=val; }
+    });
+  };
+  setVal('Forecast (EOM)', fmtCr(d.forecast_eom));
+  setVal('Run rate (30%)', fmtL(d.run_rate.component));
+  setVal('Pipeline (40%)', fmtL(d.pipeline.component));
+  setVal('Days remaining', d.run_rate.remaining_days);
+  setVal('Required daily', fmtL(d.required_daily));
+  setVal('Gap to target', fmtL(d.gap_to_target));
+
+  const fbox = document.querySelector('#main-content .fbox');
+  if(fbox){
+    fbox.textContent = `Forecast = (Run Rate × 0.30) + (Pipeline × 0.40) + (Collections × 0.20) + (Adjustment × 0.10)
+= (₹${(d.run_rate.avg_daily/100000).toFixed(1)}L/d × ${d.run_rate.remaining_days}d × 0.30) + (${fmtNum(d.pipeline.active_leads)} leads × ${d.pipeline.rolling_cvr_pct}% CVR × ₹${(d.pipeline.avg_ticket/1000).toFixed(1)}K × 0.40) + (EMI due × 0.20) + (${(d.adjustment.factor*100).toFixed(0)}% adj)
+= ${fmtL(d.run_rate.component)} + ${fmtL(d.pipeline.component)} + ${fmtL(d.collections.component)} + adj = ${fmtCr(d.forecast_eom)}
+
+Adjustment: ${d.adjustment.reason} (factor ${d.adjustment.factor})
+Target: ${fmtCr(d.target)} · Gap: ${fmtL(d.gap_to_target)} · Required daily: ${fmtL(d.required_daily)}`;
+  }
+
+  const mrows = document.querySelectorAll('#main-content .mrow .mv');
+  const vals = [fmtCr(d.collected_so_far), fmtL(d.run_rate.component), fmtL(d.pipeline.component), fmtL(d.collections.component), '—', fmtL(d.gap_to_target)];
+  mrows.forEach((el,i)=>{ if(vals[i]!==undefined) el.textContent = vals[i]; });
+}
+
+// ── Collections ──────────────────────────────────────────────────
+async function loadCollectionsPage(){
+  const d = await api('/collections');
+  if(!d) return;
+  const setVal=(label,val)=>{
+    document.querySelectorAll('.kcard').forEach(c=>{
+      const lbl=c.querySelector('.kcard-label');
+      if(lbl && lbl.textContent.trim()===label){ c.querySelector('.kcard-val').textContent=val; }
+    });
+  };
+  setVal('Total Fees Due', fmtCr(d.total_fees_due));
+  setVal('Total Collected', fmtCr(d.total_collected));
+  setVal('Collection Rate', d.collection_rate_pct+'%');
+  setVal('Overdue >7 days', fmtL(d.overdue_7days));
+  setVal('Overdue >30 days', fmtL(d.overdue_30days));
+  setVal('EMI Default Rate', d.emi_default_rate_pct+'%');
+
+  const tbody = document.querySelectorAll('#main-content table.t tbody')[0];
+  if(tbody && d.overdue_table){
+    const statusCls = s=>({'Overdue':'b-bad','Defaulted':'b-bad','Partial':'b-warn','Paid':'b-ok'}[s]||'b-muted');
+    tbody.innerHTML = d.overdue_table.slice(0,10).map(r=>`<tr>
+      <td>${r.collection_id}</td><td>${BD_NAMES[r.bd_id]||r.bd_id}</td><td>₹${fmtNum(r.amount_due)}</td>
+      <td>₹${fmtNum(r.amount_collected)}</td><td>₹${fmtNum(r.amount_due-r.amount_collected)}</td>
+      <td class="kd">${r.days_overdue}d</td><td>${badge(r.status,statusCls(r.status))}</td>
+    </tr>`).join('');
+  }
+}
+
+// ── Conversion Funnel ────────────────────────────────────────────
+async function loadFunnel(){
+  const d = await api('/funnel');
+  if(!d) return;
+  const setVal=(label,val)=>{
+    document.querySelectorAll('.kcard-val').forEach(el=>{
+      const card = el.closest('.kcard');
+      const lbl = card.querySelector('.kcard-label')?.textContent.trim();
+      if(lbl && lbl.includes(label)) el.textContent = val;
+    });
+  };
+  setVal('Overall CVR', d.overall_cvr_pct+'%');
+  setVal('Real CVR', d.real_cvr_pct+'%');
+
+  const steps = document.querySelectorAll('#main-content .funnel-step');
+  d.stages.forEach((s,i)=>{
+    if(!steps[i]) return;
+    const bar = steps[i].querySelector('.funnel-bf');
+    const pct = steps[i].querySelector('.funnel-pct');
+    if(bar){
+      bar.style.width = Math.max(2,s.of_previous) + '%';
+      bar.querySelector('span').textContent = fmtNum(s.count);
+    }
+    if(pct) pct.textContent = s.of_previous+'%';
+  });
+}
+
+// ── NEW: Day-wise calls per BD ───────────────────────────────────
+async function loadDailyCalls(){
+  const bdSel = document.getElementById('dwc-bd');
+  const daysSel = document.getElementById('dwc-days');
+  const bd = bdSel ? bdSel.value : '';
+  const days = daysSel ? daysSel.value : '14';
+
+  const d = await api(`/bd-daily-calls?bd_id=${bd}&days=${days}`);
+  if(!d) return;
+
+  const asof = document.getElementById('dwc-asof');
+  if(asof) asof.textContent = `As of ${d.as_of} · last ${d.days} days`;
+
+  const tbody = document.querySelector('#dwc-table tbody');
+  if(tbody){
+    const rows = [];
+    for(const [bdName, days] of Object.entries(d.by_bd)){
+      for(const day of days) rows.push({bdName, ...day});
+    }
+    rows.sort((a,b)=> a.bdName.localeCompare(b.bdName) || b.date.localeCompare(a.date));
+    tbody.innerHTML = rows.length ? rows.map(r=>{
+      const zsCls = r.zero_sec_calls > r.total_calls*0.5 ? 'kd' : '';
+      return `<tr>
+        <td style="font-weight:500">${r.bdName}</td>
+        <td>${new Date(r.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',weekday:'short'})}</td>
+        <td>${r.total_calls}</td><td class="ku">${r.connected_calls}</td>
+        <td class="${zsCls}">${r.zero_sec_calls}</td><td>${r.talktime_minutes}</td><td>${r.unique_leads_called}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No call data for this filter</td></tr>`;
+  }
+
+  // chart: connected calls per day, one line per BD
+  const allDates = new Set();
+  Object.values(d.by_bd).forEach(arr=>arr.forEach(x=>allDates.add(x.date)));
+  const labels = Array.from(allDates).sort();
+  const colors = ['#2E5FA3','#16A34A','#7C3AED','#D97706','#C0392B','#D4A017','#1A3C6B','#6B7280'];
+  let ci=0;
+  const datasets = Object.entries(d.by_bd).map(([bdName, arr])=>{
+    const map = {}; arr.forEach(x=>map[x.date]=x.connected_calls);
+    return {label:bdName, data: labels.map(l=>map[l]??0), borderColor: colors[ci++ % colors.length], tension:.3, pointRadius:2, borderWidth:2};
+  });
+
+  const canvas = document.getElementById('dwcChart');
+  if(canvas){
+    if(charts.dwc) charts.dwc.destroy();
+    charts.dwc = new Chart(canvas, {
+      type:'line',
+      data:{labels: labels.map(l=>new Date(l).toLocaleDateString('en-IN',{day:'numeric',month:'short'})), datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},boxWidth:12}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:10}}}}}
+    });
+  }
+}
+
+// ── NEW: Uncalled leads — buckets + day-wise grid ────────────────
+async function loadUncalled(){
+  const bucketSel = document.getElementById('uc-bucket');
+  const bdSel = document.getElementById('uc-bd');
+  const bucket = bucketSel ? bucketSel.value : '';
+  const bd = bdSel ? bdSel.value : '';
+
+  const params = new URLSearchParams();
+  if(bucket) params.set('bucket', bucket);
+  if(bd) params.set('bd_id', bd);
+  params.set('include_daywise','1');
+
+  const d = await api(`/uncalled-leads?${params.toString()}`);
+  if(!d) return;
+
+  // bucket KPI cards
+  const bucketsEl = document.getElementById('uncalled-buckets');
+  if(bucketsEl && d.buckets){
+    const colorFor = b=>({'0-1d':'g','2-3d':'g','4-7d':'y','8-15d':'y','15+d':'r'}[b]||'g');
+    bucketsEl.innerHTML = d.buckets.map(b=>`
+      <div class="kcard" onclick="document.getElementById('uc-bucket').value='${b.bucket}';loadUncalled()">
+        <div class="kcard-bar ${colorFor(b.bucket)}"></div>
+        <div class="kcard-label">${b.bucket} since last call</div>
+        <div class="kcard-val">${fmtNum(b.count)}</div>
+        <div class="kcard-bottom"><div class="kcard-delta nt">${b.never_called} never called</div></div>
+      </div>`).join('');
+  }
+
+  // by-BD table
+  const bybd = document.getElementById('uc-bybd-table')?.querySelector('tbody');
+  if(bybd && d.by_bd){
+    const order = {'0-1d':0,'2-3d':1,'4-7d':2,'8-15d':3,'15+d':4};
+    const rows = [...d.by_bd].sort((a,b)=> a.bd_name.localeCompare(b.bd_name) || (order[a.age_bucket]-order[b.age_bucket]));
+    bybd.innerHTML = rows.map(r=>{
+      const cls = r.age_bucket==='15+d'?'kd':r.age_bucket==='8-15d'?'kw':'';
+      return `<tr><td>${r.bd_name}</td><td>${r.age_bucket}</td><td class="${cls}">${r.n}</td></tr>`;
+    }).join('');
+  }
+
+  // detail table with daywise grid
+  const detailEl = document.getElementById('uc-detail-table')?.querySelector('tbody');
+  if(detailEl){
+    if(!d.detail || !d.detail.length){
+      detailEl.innerHTML = `<tr><td colspan="20" style="text-align:center;color:var(--muted);padding:20px">No leads match this filter</td></tr>`;
+    } else {
+      detailEl.innerHTML = d.detail.slice(0,50).map(r=>{
+        const cells = (r.daywise||[]).map(day=>{
+          const bg = day.uncalled ? '#FEE2E2' : '#DCFCE7';
+          const title = `${day.date}: ${day.uncalled?'Uncalled':'Called'}`;
+          return `<td style="background:${bg};text-align:center;padding:4px;width:20px" title="${title}"></td>`;
+        }).join('');
+        return `<tr>
+          <td>${r.lead_name||r.lead_id}</td><td>${r.bd_name}</td>
+          <td>${r.last_call_date ? new Date(r.last_call_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : 'Never'}</td>
+          <td>${r.days_since_last_call ?? '—'}</td><td>${badge(r.age_bucket, r.age_bucket==='15+d'?'b-bad':'b-warn')}</td>
+          ${cells}
+        </tr>`;
+      }).join('');
+    }
+  }
+}
+
+// ── NEW: Settings / API Keys ─────────────────────────────────────
+function saveAdminToken(){
+  const val = document.getElementById('admin-token-input')?.value || '';
+  if(val) localStorage.setItem('riscc_admin_token', val);
+  else localStorage.removeItem('riscc_admin_token');
+  loadSettings();
+}
+
+async function loadSettings(){
+  const tokenInput = document.getElementById('admin-token-input');
+  if(tokenInput) tokenInput.value = localStorage.getItem('riscc_admin_token') || '';
+
+  const settings = await api('/settings');
+  const container = document.getElementById('settings-cards');
+  if(!container) return;
+  if(!settings){
+    container.innerHTML = `<div class="card">Could not load settings — is the backend running?</div>`;
+    return;
+  }
+
+  const fieldsFor = (s)=>{
+    let extraFields = '';
+    if(s.connector_key==='gsheets'){
+      extraFields = `<div class="filter-group" style="margin-top:8px"><span class="filter-label" style="min-width:90px">Sheet ID:</span>
+        <input type="text" id="extra-${s.connector_key}-sheet_id" value="${(s.extra_config.sheet_id||'')}" placeholder="Google Sheet ID" style="flex:1;font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg)"/></div>`;
+    }
+    if(s.connector_key==='claude'){
+      extraFields = `<div class="filter-group" style="margin-top:8px"><span class="filter-label" style="min-width:90px">Model:</span>
+        <input type="text" id="extra-${s.connector_key}-model" value="${(s.extra_config.model||'claude-sonnet-4-6')}" placeholder="claude-sonnet-4-6" style="flex:1;font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg)"/></div>`;
+    }
+    return extraFields;
+  };
+
+  container.innerHTML = settings.map(s=>`
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">${s.label}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${s.has_key ? badge('Key saved: '+s.api_key_masked, 'b-ok') : badge('Not configured','b-muted')}
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer">
+            <input type="checkbox" id="enabled-${s.connector_key}" ${s.enabled?'checked':''}/> Enabled
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="filter-group"><span class="filter-label" style="min-width:90px">Base URL:</span>
+          <input type="text" id="baseurl-${s.connector_key}" value="${s.base_url||''}" placeholder="https://api.example.com" style="flex:1;font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg)"/></div>
+        <div class="filter-group"><span class="filter-label" style="min-width:90px">API Key:</span>
+          <input type="password" id="apikey-${s.connector_key}" placeholder="${s.has_key ? 'Leave blank to keep current key' : 'Paste API key'}" style="flex:1;font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg)"/>
+          ${s.has_key ? `<button class="btn-sm" onclick="clearKey('${s.connector_key}')" title="Remove key"><i class="ti ti-trash"></i></button>` : ''}
+        </div>
+        ${fieldsFor(s)}
+        <div style="margin-top:4px">${btn('Save '+s.label, 'btn-primary')}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // wire save buttons
+  container.querySelectorAll('.card').forEach((card, i) => {
+    const s = settings[i];
+    const saveBtn = card.querySelector('.btn-primary');
+    if(saveBtn) saveBtn.onclick = () => saveConnector(s.connector_key);
+  });
+
+  // sync buttons
+  const syncContainer = document.getElementById('sync-buttons');
+  if(syncContainer){
+    const syncable = settings.filter(s=>['ocrm','sales_api','gsheets'].includes(s.connector_key));
+    syncContainer.innerHTML = syncable.map(s=>
+      `<button class="btn-sm btn-primary" onclick="runSync('${s.connector_key}')">Sync ${s.label} now</button>`
+    ).join('');
+  }
+}
+
+async function saveConnector(key){
+  const apiKey = document.getElementById(`apikey-${key}`)?.value || '';
+  const baseUrl = document.getElementById(`baseurl-${key}`)?.value || '';
+  const enabled = document.getElementById(`enabled-${key}`)?.checked || false;
+
+  const extra_config = {};
+  if(key==='gsheets'){
+    extra_config.sheet_id = document.getElementById(`extra-${key}-sheet_id`)?.value || '';
+  }
+  if(key==='claude'){
+    extra_config.model = document.getElementById(`extra-${key}-model`)?.value || 'claude-sonnet-4-6';
+  }
+
+  const body = {base_url: baseUrl, enabled, extra_config};
+  if(apiKey) body.api_key = apiKey;
+
+  const result = await apiPost(`/settings/${key}`, body);
+  if(result.error){
+    alert('Error saving: ' + result.error);
+  } else {
+    await loadSettings();
+  }
+}
+
+async function clearKey(key){
+  if(!confirm(`Remove the stored API key for ${key}? This will also disable the connector.`)) return;
+  try{
+    await fetch(`${API_BASE}/settings/${key}/key`, {method:'DELETE'});
+  }catch(e){ console.error(e); }
+  await loadSettings();
+}
+
+async function runSync(key){
+  const resultEl = document.getElementById('sync-result');
+  if(resultEl) resultEl.textContent = `Syncing ${key}…`;
+  const result = await apiPost(`/sync/${key}`, {});
+  if(resultEl){
+    if(result.error) resultEl.innerHTML = `<span class="kd">Sync failed: ${result.error}${result.detail?' — '+JSON.stringify(result.detail):''}</span>`;
+    else resultEl.innerHTML = `<span class="ku">Sync complete:</span> ${JSON.stringify(result.result)} · refreshed ${JSON.stringify(result.refreshed)}`;
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────
+document.getElementById('main-content').innerHTML=PAGES['exec'];
+setTimeout(()=>initC('exec'),80);
+loadPageData('exec');
+</script>
+</body>
+</html>
