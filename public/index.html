@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Sales Intelligence Dashboard</title>
+<title>RISCC — Revenue Intelligence & Sales Command Center</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
@@ -214,8 +214,8 @@ table.t tr:hover .td-action{opacity:1}
 <!-- ── SIDEBAR ── -->
 <div class="sidebar">
   <div class="sidebar-logo">
-    <div class="logo-name">SID</div>
-    <div class="logo-sub">Sales Intelligence Dashboard-Testbook</div>
+    <div class="logo-name">RISCC</div>
+    <div class="logo-sub">Revenue Intelligence · Nirnay IAS / Testbook</div>
   </div>
   <div class="nav-group">
     <div class="nav-group-label">Executive</div>
@@ -301,7 +301,7 @@ table.t tr:hover .td-action{opacity:1}
     </div>
     <div class="cop-msgs" id="cop-msgs">
       <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> At current pace, will we hit target?</div>
-      <div class="cmsg cmsg-a"><strong>SID —</strong> No — forecast ₹2.61Cr vs ₹2.80Cr target (₹19L gap). Run rate ₹9.6L/day needs to reach ₹15.8L/day. Closable if 163 leads reallocated today + 34 overdue hot leads actioned by week end. Note: 3 BDs had no calls logged yesterday — data may be incomplete. Want me to model the reallocation scenario?</div>
+      <div class="cmsg cmsg-a"><strong>RISCC —</strong> No — forecast ₹2.61Cr vs ₹2.80Cr target (₹19L gap). Run rate ₹9.6L/day needs to reach ₹15.8L/day. Closable if 163 leads reallocated today + 34 overdue hot leads actioned by week end. Note: 3 BDs had no calls logged yesterday — data may be incomplete. Want me to model the reallocation scenario?</div>
     </div>
     <div class="cop-foot">
       <input type="text" id="cop-in" placeholder="Ask anything — ⌘K…"/>
@@ -318,7 +318,7 @@ let curPage='exec', charts={}, ribbonOpen=true;
 // ── API base — same origin (backend serves this file from /public) ──
 const API_BASE = '/api';
 function adminHeaders(){
-  const token = localStorage.getItem('SID_admin_token');
+  const token = localStorage.getItem('riscc_admin_token');
   return token ? {'Authorization': 'Bearer '+token} : {};
 }
 async function api(path){
@@ -374,13 +374,13 @@ async function sendCop(){
   const msgs=document.getElementById('cop-msgs');
   msgs.innerHTML+=`<div class="cmsg cmsg-u" style="margin-top:8px"><span style="color:var(--muted)">You —</span> ${q}</div>`;
   const thinkingId = 'think-'+Math.random().toString(36).slice(2);
-  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>SID —</strong> Thinking…</div>`;
+  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>RISCC —</strong> Thinking…</div>`;
   msgs.scrollTop=msgs.scrollHeight;inp.value='';
   const result = await apiPost('/copilot', {question:q});
   const el = document.getElementById(thinkingId);
   if(el){
     el.style.color=''; el.style.fontStyle='';
-    el.innerHTML = `<strong>SID —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -799,7 +799,7 @@ ${[['PK','#DCFCE7','#166534','Priya K.','14.1%','92h MTD','88%','10.5%','Top per
   </div>
   <div id="cop-msgs-full" style="padding:14px;min-height:120px;max-height:240px;overflow-y:auto">
     <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> Why did our CVR drop this week?</div>
-    <div class="cmsg cmsg-a"><strong>SID —</strong> Real CVR dropped from 11.8% to 9.4% — a 20.3% decline. Three causes: (1) Rahul S. + Varun T. contributed only 2 sales this week vs 5 last. (2) WhatsApp leads (3.1% CVR) grew from 14% to 22% of this week's assignment. (3) FU compliance fell to 54%, sending 34 hot leads cold. Removing those two BDs, team CVR is 11.1% — essentially flat. Want a source-level breakdown?</div>
+    <div class="cmsg cmsg-a"><strong>RISCC —</strong> Real CVR dropped from 11.8% to 9.4% — a 20.3% decline. Three causes: (1) Rahul S. + Varun T. contributed only 2 sales this week vs 5 last. (2) WhatsApp leads (3.1% CVR) grew from 14% to 22% of this week's assignment. (3) FU compliance fell to 54%, sending 34 hot leads cold. Removing those two BDs, team CVR is 11.1% — essentially flat. Want a source-level breakdown?</div>
   </div>
   <div style="display:flex;gap:8px;padding:10px;border-top:0.5px solid var(--border)">
     <input type="text" id="cop-in-full" placeholder="Ask anything — 'Who are top 5 BDs?', 'Forecast at 10% CVR?', 'Which leads to reassign?'…" style="flex:1;font-size:12px;padding:8px 12px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg);color:var(--text)"/>
@@ -905,20 +905,8 @@ ${[['Triggered','Uncontacted rate >35%','Rahul S. (47%) + Varun T. (41%) both tr
 <div class="card"><div class="card-hdr"><div class="card-title">TL Performance</div></div>
 <table class="t"><thead><tr><th>Team leader</th><th>BDs</th><th>Leads</th><th>Penetration %</th><th>Team CVR %</th><th>Real CVR %</th><th>Revenue</th><th>Chase %</th><th>Coaching score</th></tr></thead>
 <tbody>
-  <tr><td style="font-weight:600">Anand R.</td><td>5</td><td>1,298</td><td class="ku">83%</td><td>9.6%</td><td class="ku">12.4%</td><td>₹72.1L</td><td>72%</td><td class="ku">74/100</td></tr>
-  <tr><td style="font-weight:600">Meena V.</td><td>4</td><td>982</td><td class="kd">68%</td><td>5.8%</td><td class="kw">7.2%</td><td>₹44.3L</td><td>56%</td><td class="kw">48/100</td></tr>
-</tbody></table></div>
-<div class="g2">
-  <div class="card"><div class="card-hdr"><div class="card-title">Anand R. — Actions</div></div>
-    <div style="font-size:12px;color:var(--text);padding:8px 0;border-bottom:0.5px solid var(--border)">${badge('P1','b-p1')} &nbsp;Varun T. BD score 0.28 — reduce leads by 118. Reallocate to Priya K. (capacity: +60).</div>
-    <div style="font-size:12px;color:var(--text);padding:8px 0">${badge('P2','b-p2')} &nbsp;Kabir D. chase 57% — below 80% target. 1:1 coaching this week.</div>
-  </div>
-  <div class="card"><div class="card-hdr"><div class="card-title">Meena V. — Actions</div></div>
-    <div style="font-size:12px;color:var(--text);padding:8px 0;border-bottom:0.5px solid var(--border)">${badge('P0','b-p0')} &nbsp;Rahul S. score 88 — freeze + audit + PIP today.</div>
-    <div style="font-size:12px;color:var(--text);padding:8px 0;border-bottom:0.5px solid var(--border)">${badge('P1','b-p1')} &nbsp;3 BDs with uncontacted >30% → TL coaching alert triggered.</div>
-    <div style="font-size:12px;color:var(--text);padding:8px 0">${badge('P1','b-p1')} &nbsp;Team penetration 68% — 12pt below 80% target.</div>
-  </div>
-</div>`,
+  <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px">Loading…</td></tr>
+</tbody></table></div>`,
 
 'rev':`<div class="sl">Revenue intelligence · sales table</div>
 <div class="kgrid">
@@ -1061,7 +1049,7 @@ ${[['Triggered','Uncontacted rate >35%','Rahul S. (47%) + Varun T. (41%) both tr
   <div style="display:flex;gap:10px;align-items:flex-start">
     <i class="ti ti-shield-lock" style="font-size:18px;color:var(--gold);flex-shrink:0;margin-top:2px"></i>
     <div style="font-size:12px;color:var(--text);line-height:1.6">
-      <strong>How this works:</strong> keys you enter below are sent once to your backend and stored in <code>db/SID.sqlite</code> (table <code>api_settings</code>).
+      <strong>How this works:</strong> keys you enter below are sent once to your backend and stored in <code>db/riscc.sqlite</code> (table <code>api_settings</code>).
       They are never written into this HTML/JS file and never sent back to the browser in full — only a masked preview (e.g. <code>sk-a••••••••wXyz</code>) is shown.
       You can deploy this HTML publicly without exposing credentials, as long as your backend itself is not publicly readable (keep <code>/api/settings</code> behind <code>ADMIN_TOKEN</code> — see README).
     </div>
@@ -1341,13 +1329,13 @@ async function sendCopFull(){
   const msgs=document.getElementById('cop-msgs-full');
   msgs.innerHTML+=`<div class="cmsg cmsg-u" style="margin-top:8px"><span style="color:var(--muted)">You —</span> ${q}</div>`;
   const thinkingId = 'thinkf-'+Math.random().toString(36).slice(2);
-  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>SID —</strong> Thinking…</div>`;
+  msgs.innerHTML+=`<div class="cmsg cmsg-a" id="${thinkingId}" style="color:var(--muted);font-style:italic"><strong>RISCC —</strong> Thinking…</div>`;
   msgs.scrollTop=msgs.scrollHeight;inp.value='';
   const result = await apiPost('/copilot', {question:q});
   const el = document.getElementById(thinkingId);
   if(el){
     el.style.color=''; el.style.fontStyle='';
-    el.innerHTML = `<strong>SID —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -1362,6 +1350,7 @@ const BD_NAMES = {bd_priya:'Priya K.',bd_ajay:'Ajay M.',bd_sneha:'Sneha G.',bd_n
 const LOADERS = {
   exec: loadExec,
   bd: loadBd,
+  tl: loadTl,
   source: loadSource,
   followup: loadFollowup,
   leakage: loadLeakage,
@@ -1462,6 +1451,32 @@ async function loadBd(){
     }
   }
 }
+
+// ── Team Leader Performance ──────────────────────────────────────
+async function loadTl(){
+  const rows = await api('/tl-performance');
+  if(!rows) return;
+  const tbody = document.querySelector('#main-content table.t tbody');
+  if(!tbody) return;
+  const numCls = (v,hi,lo)=> v>=hi?'ku':v<=lo?'kd':'kw';
+  const coachCls = v=> v>=70?'ku':v>=50?'kw':'kd';
+  if(!rows.length){
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px">No team leader data yet</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r=>`<tr>
+    <td style="font-weight:600">${r.tl_name}</td>
+    <td>${fmtNum(r.bd_count)}</td>
+    <td>${fmtNum(r.leads)}</td>
+    <td class="${numCls(r.penetration_pct,80,50)}">${r.penetration_pct}%</td>
+    <td>${r.team_cvr_pct}%</td>
+    <td class="${numCls(r.real_cvr_pct,10,5)}">${r.real_cvr_pct}%</td>
+    <td>${fmtL(r.revenue)}</td>
+    <td class="${numCls(r.chase_pct,70,45)}">${r.chase_pct}%</td>
+    <td class="${coachCls(r.coaching_score)}">${r.coaching_score}/100</td>
+  </tr>`).join('');
+}
+
 
 // ── Source Analysis ──────────────────────────────────────────────
 async function loadSource(){
@@ -1755,14 +1770,14 @@ async function loadUncalled(){
 // ── NEW: Settings / API Keys ─────────────────────────────────────
 function saveAdminToken(){
   const val = document.getElementById('admin-token-input')?.value || '';
-  if(val) localStorage.setItem('SID_admin_token', val);
-  else localStorage.removeItem('SID_admin_token');
+  if(val) localStorage.setItem('riscc_admin_token', val);
+  else localStorage.removeItem('riscc_admin_token');
   loadSettings();
 }
 
 async function loadSettings(){
   const tokenInput = document.getElementById('admin-token-input');
-  if(tokenInput) tokenInput.value = localStorage.getItem('SID_admin_token') || '';
+  if(tokenInput) tokenInput.value = localStorage.getItem('riscc_admin_token') || '';
 
   const settings = await api('/settings');
   const container = document.getElementById('settings-cards');
