@@ -102,15 +102,33 @@ async function syncOcrm(setting) {
       ? `bd_${String(r.Emp_id || r.assign_BD).trim()}`
       : null;
 
+    // ── Team Leader: derive from team_name (e.g. "Team Maneesh ATL (Select)" -> "Maneesh") ──
+    let tlId = null;
+    if (r.team_name) {
+      let tlName = String(r.team_name).trim();
+      tlName = tlName.replace(/^Team\s+/, '');
+      tlName = tlName.replace(/\s*(ATL\s*)?\((Select|AGM|ASM)\)\s*$/, '').trim();
+      if (tlName) {
+        tlId = `tl_${tlName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
+        const tlExists = one(`SELECT tl_id FROM team_leaders WHERE tl_id=?`, [tlId]);
+        if (!tlExists) {
+          runNoPersist(`INSERT INTO team_leaders (tl_id, name) VALUES (?, ?) ON CONFLICT(tl_id) DO NOTHING`, [tlId, tlName]);
+        }
+      }
+    }
+
     // Ensure BD exists (lead-level feed may reference BDs not seen in sales sync)
     if (bdId) {
-      const exists = one(`SELECT bd_id FROM bds WHERE bd_id=?`, [bdId]);
+      const exists = one(`SELECT bd_id, team_leader_id FROM bds WHERE bd_id=?`, [bdId]);
       if (!exists) {
         runNoPersist(`
           INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
-          VALUES (?, ?, NULL, ?, date('now'), 'Active', 0, 0)
+          VALUES (?, ?, ?, ?, date('now'), 'Active', 0, 0)
           ON CONFLICT(bd_id) DO NOTHING
-        `, [bdId, r.employeeEmail || bdId, r.team_name ? `team_${r.team_name}` : null]);
+        `, [bdId, r.employeeEmail || bdId, tlId, r.team_name ? `team_${r.team_name}` : null]);
+      } else if (tlId && !exists.team_leader_id) {
+        // backfill team_leader_id for BDs created before this mapping existed
+        runNoPersist(`UPDATE bds SET team_leader_id=? WHERE bd_id=?`, [tlId, bdId]);
       }
     }
 
