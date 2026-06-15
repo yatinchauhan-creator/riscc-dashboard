@@ -1,13 +1,6 @@
 // ════════════════════════════════════════════════════════════════
 // routes/sync.js — connector sync jobs (Doc 6 §6 Phase 1: Foundation)
 //
-// These are PLACEHOLDER implementations. Once you fill in the
-// base_url + api_key for 'ocrm' / 'sales_api' / 'gsheets' in
-// Settings, implement the actual fetch+map logic in the marked
-// TODO sections. The shape each connector must ultimately produce
-// is documented inline so it slots into the existing `leads`,
-// `calls`, `sales`, `followups`, `collections` tables (Doc 5 schema).
-//
 // POST /api/sync/:connector  — triggers a manual sync
 // GET  /api/sync/status      — last sync time per connector
 // ════════════════════════════════════════════════════════════════
@@ -56,68 +49,33 @@ router.post('/:connector', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-// OCRM — leads + calls + followups
-// TODO: replace the example endpoint/response mapping with your
-// actual OCRM API's shape. The goal is to upsert into `leads`,
-// `calls`, and `followups` tables.
-// ────────────────────────────────────────────────────────────────
-async function syncOcrm(setting) {
-  const extra = JSON.parse(setting.extra_config || '{}');
-
-  // Example call — adjust path/params to your OCRM API docs
-  const resp = await axios.get(`${setting.base_url}/leads`, {
-    headers: { Authorization: `Bearer ${setting.api_key}` },
-    params: { updated_since: extra.last_sync || '2026-06-01' },
-    timeout: 30000,
-  });
-
-  const leadsFromOcrm = resp.data.leads || resp.data || [];
-  let upserted = 0;
-  for (const l of leadsFromOcrm) {
-    // TODO: map OCRM fields -> leads table columns (Doc 5 schema)
-    run(`
-      INSERT INTO leads (lead_id, phone_normalized, crm_id, email, name, source, campaign_id, state, category, assigned_bd_id, assigned_date, status, temperature, last_call_date, last_crm_update, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(lead_id) DO UPDATE SET
-        status=excluded.status, temperature=excluded.temperature,
-        last_call_date=excluded.last_call_date, last_crm_update=excluded.last_crm_update
-    `, [
-      l.lead_id, l.phone, l.crm_id, l.email, l.name, l.source, l.campaign_id,
-      l.state, l.category, l.assigned_bd_id, l.assigned_date, l.status || 'Open',
-      l.temperature || 'Cold', l.last_call_date || null, l.last_crm_update || null, l.created_at || new Date().toISOString(),
-    ]);
-    upserted++;
-  }
-
-  // bump last_sync watermark
-  const newExtra = { ...extra, last_sync: new Date().toISOString() };
-  run(`UPDATE api_settings SET extra_config=? WHERE connector_key='ocrm'`, [JSON.stringify(newExtra)]);
-
-  return { leads_upserted: upserted };
-}
-
-// ────────────────────────────────────────────────────────────────
-// Sales API — Testbook Redash query 22259 (transactions feed)
+// OCRM — Testbook Redash query 22764 (lead-level snapshot incl.
+// aggregated calling stats)
 //
-// Source: https://data.testbook.com/api/queries/22259/results.json
+// Source: https://data.testbook.com/api/queries/22764/results.json
 // Auth: Redash uses ?api_key=... in the URL (NOT a Bearer header)
 // Response shape: { query_result: { data: { rows: [ {...}, ... ] } } }
 //
-// Each row's relevant columns (from the query's column list):
-//   mobile, pid, signUpDate, product, email, paymentMethod, TxnOn,
-//   Txnmonth, center, signUpMonth, Amount, platformFees, paidAmount,
-//   Goal, refund, sid, date, empCode, Agent, AgentEmpId, AgentEmail,
-//   AgentMobile, Student, Team, ocrm_transId, paymentMode, couponCode,
-//   couponType, DaysValidity, source, TxnId, client, goalId, expiresOn,
-//   paymentGateway, emiId, eBookRevenue, bookRevenue, productRevenue,
-//   status, dp, centerType, netAmount
+// IMPORTANT — this is a LEAD-LEVEL feed, not a per-call log. Each row
+// = one lead with aggregated call counts/duration. There is no
+// call_id, per-call timestamp, or recording_url here, so this sync
+// writes ONE SYNTHETIC `calls` ROW PER LEAD representing the totals.
+// Zero-second-call / manipulation-score detection needs a true
+// per-call log and will NOT be accurate from this feed alone.
 //
-// payment_type logic:
-//   emiId present/non-empty -> 'EMI'
-//   emiId blank + paidAmount < netAmount -> 'Partial'
-//   emiId blank + paidAmount >= netAmount -> 'Full' (paid in full at once)
+// Relevant columns:
+//   Lead_id, Emp_id, assign_BD, sources, Assign_Date, assignOn,
+//   lead_Mobile, lead_name, lead_email, Lead_Category, State,
+//   currentStatus, lastCallStatus, stage, Open_Closed, Sale_Number,
+//   Sale_Date, Sale_Amount, calls, followUpCalls, Chase, Today_Call,
+//   callDurationAmeyo, Duration, CallDuration, assign_expOn
+//
+// Duration fields (callDurationAmeyo / Duration / CallDuration) are
+// in HOURS (e.g. 0.3166666667 ~= 19 min). Converted to seconds via
+// hours * 3600. callDurationAmeyo used first, falling back to
+// Duration then CallDuration.
 // ────────────────────────────────────────────────────────────────
-async function syncSalesApi(setting) {
+async function syncOcrm(setting) {
   const extra = JSON.parse(setting.extra_config || '{}');
 
   // Redash: API key goes in the query string, not a header
@@ -127,7 +85,193 @@ async function syncSalesApi(setting) {
 
   const resp = await axios.get(url, { timeout: 60000 });
 
-  // Redash results.json shape
+  const rows = resp.data?.query_result?.data?.rows
+    || resp.data?.rows
+    || resp.data
+    || [];
+
+  let leadsUpserted = 0;
+  let callsUpserted = 0;
+  let followupsUpserted = 0;
+
+  for (const r of rows) {
+    const leadId = r.Lead_id ? `lead_${String(r.Lead_id).trim()}` : null;
+    if (!leadId) continue;
+
+    const bdId = (r.Emp_id || r.assign_BD)
+      ? `bd_${String(r.Emp_id || r.assign_BD).trim()}`
+      : null;
+
+    // Ensure BD exists (lead-level feed may reference BDs not seen in sales sync)
+    if (bdId) {
+      const exists = one(`SELECT bd_id FROM bds WHERE bd_id=?`, [bdId]);
+      if (!exists) {
+        runNoPersist(`
+          INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
+          VALUES (?, ?, NULL, ?, date('now'), 'Active', 0, 0)
+          ON CONFLICT(bd_id) DO NOTHING
+        `, [bdId, r.employeeEmail || bdId, r.team_name ? `team_${r.team_name}` : null]);
+      }
+    }
+
+    // ── source: first entry of `sources` JSON array, fallback source_tag ──
+    let source = r.source_tag || 'Unknown';
+    if (r.sources) {
+      try {
+        const arr = JSON.parse(r.sources);
+        if (Array.isArray(arr) && arr.length) source = arr[0];
+      } catch (e) { /* leave as source_tag */ }
+    }
+
+    // ── status: Sale_Number > Open_Closed/stage ──
+    let status = 'Open';
+    const stage = (r.stage || '').trim();
+    const openClosed = (r.Open_Closed || '').trim();
+    if (r.Sale_Number) {
+      status = 'Converted';
+    } else if (openClosed === 'Closed') {
+      status = 'Lost';
+    } else if (/follow.?up required|interested|promise.?to.?pay|high intent|sales.?done/i.test(stage) || /^Interested$/i.test(r.currentStatus || '')) {
+      status = 'Interested';
+    } else if (r.Sale_Amount) {
+      status = 'Proposal';
+    } else {
+      status = 'Open';
+    }
+
+    // ── temperature: derive from stage/currentStatus ──
+    let temperature = 'Cold';
+    const cur = (r.currentStatus || '').toLowerCase();
+    const stg = stage.toLowerCase();
+    if (/promise.?to.?pay|high intent|interested|sales.?done/.test(stg) || /promise.?to.?pay|high intent|interested/.test(cur)) {
+      temperature = 'Hot';
+    } else if (/follow.?up required|call back later/.test(stg)) {
+      temperature = 'Warm';
+    } else {
+      temperature = 'Cold';
+    }
+
+    // ── upsert lead ──
+    runNoPersist(`
+      INSERT INTO leads (lead_id, phone_normalized, crm_id, email, name, source, campaign_id, state, category, assigned_bd_id, assigned_date, status, temperature, last_call_date, last_crm_update, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(lead_id) DO UPDATE SET
+        status=excluded.status, temperature=excluded.temperature,
+        assigned_bd_id=excluded.assigned_bd_id,
+        last_call_date=excluded.last_call_date, last_crm_update=excluded.last_crm_update,
+        category=excluded.category, state=excluded.state
+    `, [
+      leadId,
+      r.lead_Mobile || null,
+      String(r.Lead_id || ''),
+      r.lead_email || null,
+      r.lead_name || null,
+      source,
+      null,
+      r.State || null,
+      r.Lead_Category || 'Fresh',
+      bdId,
+      r.Assign_Date || r.assignOn || new Date().toISOString(),
+      status,
+      temperature,
+      r.assignOn || null,
+      r.assignOn || new Date().toISOString(),
+      r.Assign_Date || r.assignOn || new Date().toISOString(),
+    ]);
+    leadsUpserted++;
+
+    // ── synthetic `calls` row — one per lead, aggregated totals ──
+    // NOTE: not a true per-call log. duration fields are in hours -> *3600 for seconds.
+    const totalCalls = parseInt(r.calls, 10) || 0;
+    if (totalCalls > 0 && bdId) {
+      const durHours = parseFloat(r.callDurationAmeyo)
+        || parseFloat(r.Duration)
+        || parseFloat(r.CallDuration)
+        || 0;
+      const durationSeconds = Math.round(durHours * 3600);
+      const outcome = r.lastCallStatus || r.currentStatus || 'Unknown';
+
+      runNoPersist(`
+        INSERT INTO calls (call_id, lead_id, bd_id, call_timestamp, duration_seconds, outcome, recording_url, crm_logged, crm_log_time)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(call_id) DO UPDATE SET
+          duration_seconds=excluded.duration_seconds, outcome=excluded.outcome,
+          call_timestamp=excluded.call_timestamp, crm_log_time=excluded.crm_log_time
+      `, [
+        `call_${String(r.Lead_id).trim()}_agg`,
+        leadId,
+        bdId,
+        r.assignOn || r.Assign_Date || new Date().toISOString(),
+        durationSeconds,
+        outcome,
+        null,
+        1,
+        r.assignOn || new Date().toISOString(),
+      ]);
+      callsUpserted++;
+    }
+
+    // ── followups row — based on Chase / Today_Call / assign_expOn ──
+    if (bdId) {
+      const needsChase = (parseInt(r.Chase, 10) || 0) > 0;
+      const fuStatus = status === 'Converted' || status === 'Lost'
+        ? 'Done'
+        : (needsChase ? 'Pending' : 'Done');
+
+      runNoPersist(`
+        INSERT INTO followups (followup_id, lead_id, bd_id, scheduled_date, actual_followup_date, gap_hours, status)
+        VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(followup_id) DO UPDATE SET
+          scheduled_date=excluded.scheduled_date, status=excluded.status,
+          actual_followup_date=excluded.actual_followup_date, gap_hours=excluded.gap_hours
+      `, [
+        `fu_${String(r.Lead_id).trim()}`,
+        leadId,
+        bdId,
+        r.assign_expOn || null,
+        fuStatus === 'Done' ? (r.assignOn || null) : null,
+        null,
+        fuStatus,
+      ]);
+      followupsUpserted++;
+    }
+  }
+
+  persist();
+
+  const newExtra = { ...extra, last_sync: new Date().toISOString(), last_row_count: rows.length };
+  run(`UPDATE api_settings SET extra_config=? WHERE connector_key='ocrm'`, [JSON.stringify(newExtra)]);
+
+  return {
+    rows_received: rows.length,
+    leads_upserted: leadsUpserted,
+    calls_upserted: callsUpserted,
+    followups_upserted: followupsUpserted,
+    note: 'Synthetic per-lead call aggregates — manipulation scoring needs a true per-call log to be accurate.',
+  };
+}
+
+// ────────────────────────────────────────────────────────────────
+// Sales API — Testbook Redash query 22259 (transactions feed)
+//
+// Source: https://data.testbook.com/api/queries/22259/results.json
+// Auth: Redash uses ?api_key=... in the URL (NOT a Bearer header)
+// Response shape: { query_result: { data: { rows: [ {...}, ... ] } } }
+//
+// payment_type logic:
+//   emiId present/non-empty -> 'EMI'
+//   emiId blank + paidAmount < netAmount -> 'Partial'
+//   emiId blank + paidAmount >= netAmount -> 'Full' (paid in full at once)
+// ────────────────────────────────────────────────────────────────
+async function syncSalesApi(setting) {
+  const extra = JSON.parse(setting.extra_config || '{}');
+
+  const url = setting.base_url.includes('api_key=')
+    ? setting.base_url
+    : `${setting.base_url}${setting.base_url.includes('?') ? '&' : '?'}api_key=${setting.api_key}`;
+
+  const resp = await axios.get(url, { timeout: 60000 });
+
   const rows = resp.data?.query_result?.data?.rows
     || resp.data?.rows
     || resp.data
@@ -140,7 +284,6 @@ async function syncSalesApi(setting) {
   const seenLeads = new Set();
 
   for (const r of rows) {
-    // ── 1. Ensure a BD record exists for this agent ──
     const bdId = r.AgentEmpId ? `bd_${String(r.AgentEmpId).trim()}` : null;
     if (bdId && !seenBds.has(bdId)) {
       seenBds.add(bdId);
@@ -155,7 +298,6 @@ async function syncSalesApi(setting) {
       }
     }
 
-    // ── 2. Ensure a lead record exists for this student ──
     const leadId = r.sid ? `lead_${String(r.sid).trim()}` : (r.mobile ? `lead_m${r.mobile}` : null);
     if (leadId && !seenLeads.has(leadId)) {
       seenLeads.add(leadId);
@@ -174,9 +316,8 @@ async function syncSalesApi(setting) {
       }
     }
 
-    // ── 3. Map the transaction into `sales` ──
     const orderId = r.TxnId ? `txn_${r.TxnId}` : null;
-    if (!orderId) continue; // skip rows with no transaction id
+    if (!orderId) continue;
 
     const gross = parseFloat(r.Amount) || 0;
     const net = r.netAmount !== undefined && r.netAmount !== null ? parseFloat(r.netAmount) : gross;
@@ -188,8 +329,6 @@ async function syncSalesApi(setting) {
     if (refundAmt > 0 || (r.status && /refund/i.test(r.status))) status = 'Refunded';
     else if (r.status && /hold|pending/i.test(r.status)) status = 'On Hold';
 
-    // payment_type: emiId blank => paid in full at once ('Full'),
-    // unless paidAmount < netAmount (then 'Partial'). emiId present => 'EMI'.
     let paymentType = 'Full';
     const emiId = (r.emiId || '').toString().trim();
     if (emiId) paymentType = 'EMI';
@@ -210,7 +349,6 @@ async function syncSalesApi(setting) {
     ]);
     upserted++;
 
-    // ── 4. Collections row (paidAmount vs netAmount) ──
     runNoPersist(`
       INSERT INTO collections (collection_id, order_id, amount_due, amount_collected, due_date, payment_date, status)
       VALUES (?,?,?,?,?,?,?)
@@ -233,22 +371,17 @@ async function syncSalesApi(setting) {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Google Sheets — generic CSV-style import (e.g. manual lead lists,
-// targets/config overrides)
-// TODO: point at your published-CSV or Sheets API v4 endpoint.
+// Google Sheets — generic CSV-style import
 // ────────────────────────────────────────────────────────────────
 async function syncGoogleSheets(setting) {
   const extra = JSON.parse(setting.extra_config || '{}');
   if (!extra.sheet_id) throw new Error('extra_config.sheet_id is not set');
 
-  // Example: published-to-web CSV export
   const url = `https://docs.google.com/spreadsheets/d/${extra.sheet_id}/export?format=csv`;
   const resp = await axios.get(url, { timeout: 30000 });
 
   const rows = resp.data.split('\n').map(r => r.split(','));
   const header = rows[0];
-  // TODO: map columns -> config table or leads table depending on sheet purpose
-  // Example: if sheet has columns "key,value" -> update config table
   let updated = 0;
   if (header[0]?.trim().toLowerCase() === 'key' && header[1]?.trim().toLowerCase() === 'value') {
     for (let i = 1; i < rows.length; i++) {
