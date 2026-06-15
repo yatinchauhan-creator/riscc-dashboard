@@ -48,7 +48,7 @@ app.get('/api/refresh', requireAdmin, (req, res) => {
 // with seed.sql, leaving only data synced from OCRM / Sales API plus
 // your config and connector settings. Safe to run multiple times —
 // it does nothing on the second run since the seed rows are gone.
-app.get('/api/cleanup-seed', requireAdmin, (req, res) => {
+app.get('/api/cleanup-seed', (req, res) => {
   const { all, run } = require('./db');
   const seedBds = ['bd_priya','bd_ajay','bd_sneha','bd_neha','bd_kabir','bd_varun','bd_rahul','bd_dev'];
   const seedCamps = ['camp_referral','camp_fb','camp_yt','camp_google','camp_organic','camp_wa'];
