@@ -104,9 +104,18 @@ async function syncOcrm(setting) {
 // Response shape: { query_result: { data: { rows: [ {...}, ... ] } } }
 //
 // Each row's relevant columns (from the query's column list):
-//   TxnId, sid, AgentEmpId, Agent, AgentEmail, Team, goalId, product,
-//   Amount, netAmount, paidAmount, refund, TxnOn, paymentMethod,
-//   paymentMode, status, Student, mobile, email
+//   mobile, pid, signUpDate, product, email, paymentMethod, TxnOn,
+//   Txnmonth, center, signUpMonth, Amount, platformFees, paidAmount,
+//   Goal, refund, sid, date, empCode, Agent, AgentEmpId, AgentEmail,
+//   AgentMobile, Student, Team, ocrm_transId, paymentMode, couponCode,
+//   couponType, DaysValidity, source, TxnId, client, goalId, expiresOn,
+//   paymentGateway, emiId, eBookRevenue, bookRevenue, productRevenue,
+//   status, dp, centerType, netAmount
+//
+// payment_type logic:
+//   emiId present/non-empty -> 'EMI'
+//   emiId blank + paidAmount < netAmount -> 'Partial'
+//   emiId blank + paidAmount >= netAmount -> 'Full' (paid in full at once)
 // ────────────────────────────────────────────────────────────────
 async function syncSalesApi(setting) {
   const extra = JSON.parse(setting.extra_config || '{}');
@@ -173,15 +182,18 @@ async function syncSalesApi(setting) {
     const net = r.netAmount !== undefined && r.netAmount !== null ? parseFloat(r.netAmount) : gross;
     const waiver = Math.max(0, gross - net);
     const refundAmt = parseFloat(r.refund) || 0;
+    const paid = parseFloat(r.paidAmount) || 0;
 
     let status = 'Confirmed';
     if (refundAmt > 0 || (r.status && /refund/i.test(r.status))) status = 'Refunded';
     else if (r.status && /hold|pending/i.test(r.status)) status = 'On Hold';
 
+    // payment_type: emiId blank => paid in full at once ('Full'),
+    // unless paidAmount < netAmount (then 'Partial'). emiId present => 'EMI'.
     let paymentType = 'Full';
-    const pm = (r.paymentMethod || r.paymentMode || '').toLowerCase();
-    if (pm.includes('emi')) paymentType = 'EMI';
-    else if (pm.includes('partial')) paymentType = 'Partial';
+    const emiId = (r.emiId || '').toString().trim();
+    if (emiId) paymentType = 'EMI';
+    else if (paid > 0 && paid < net) paymentType = 'Partial';
 
     runNoPersist(`
       INSERT INTO sales (order_id, lead_id, bd_id, course_id, gross_amount, waiver_amount, net_amount, sale_date, payment_type, status)
@@ -199,7 +211,6 @@ async function syncSalesApi(setting) {
     upserted++;
 
     // ── 4. Collections row (paidAmount vs netAmount) ──
-    const paid = parseFloat(r.paidAmount) || 0;
     runNoPersist(`
       INSERT INTO collections (collection_id, order_id, amount_due, amount_collected, due_date, payment_date, status)
       VALUES (?,?,?,?,?,?,?)
