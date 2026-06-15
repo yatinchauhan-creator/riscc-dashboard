@@ -228,7 +228,7 @@ async function syncOcrm(setting) {
         `fu_${String(r.Lead_id).trim()}`,
         leadId,
         bdId,
-        r.assign_expOn || null,
+        r.assign_expOn || r.assignOn || r.Assign_Date || new Date().toISOString(),
         fuStatus === 'Done' ? (r.assignOn || null) : null,
         null,
         fuStatus,
