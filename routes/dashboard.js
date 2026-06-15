@@ -607,4 +607,100 @@ router.get('/uncalled-leads', (req, res) => {
   });
 });
 
+// ──────────────────────────────────────────────────────────────
+// GET /api/tl-performance — aggregates BD performance by Team Leader
+// One row per team leader (plus an "Unassigned" row for BDs with no
+// team_leader_id), with team-level totals: BD count, leads, revenue,
+// penetration, team CVR, real CVR, chase %, and a simple coaching score.
+// ──────────────────────────────────────────────────────────────
+router.get('/tl-performance', (req, res) => {
+  const tls = all(`SELECT tl_id, name FROM team_leaders`);
+  const tlMap = {};
+  for (const tl of tls) tlMap[tl.tl_id] = tl.name;
+
+  const bds = all(`SELECT bd_id, name, team_leader_id FROM bds WHERE status='Active'`);
+
+  // Group BDs by team leader (null/unknown -> 'Unassigned')
+  const groups = {};
+  for (const bd of bds) {
+    const key = bd.team_leader_id && tlMap[bd.team_leader_id] ? bd.team_leader_id : '__unassigned__';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(bd);
+  }
+
+  const result = [];
+  for (const [tlId, groupBds] of Object.entries(groups)) {
+    const tlName = tlId === '__unassigned__' ? 'Unassigned' : tlMap[tlId];
+
+    let assigned = 0, contacted = 0, salesCount = 0, revenue = 0;
+    let fuDone = 0, fuTotal = 0;
+    let zeroSec = 0, totalCalls = 0;
+
+    for (const bd of groupBds) {
+      const a = one(`SELECT COUNT(*) AS n FROM leads WHERE assigned_bd_id=?`, [bd.bd_id]).n;
+      const c = one(`
+        SELECT COUNT(DISTINCT lead_id) AS n FROM calls
+        WHERE bd_id=? AND duration_seconds > 30
+      `, [bd.bd_id]).n;
+      const s = one(`
+        SELECT COUNT(*) AS n, SUM(net_amount) AS rev FROM sales
+        WHERE bd_id=? AND status='Confirmed'
+      `, [bd.bd_id]);
+      const fu = one(`
+        SELECT SUM(CASE WHEN status='Done' THEN 1 ELSE 0 END) AS done, COUNT(*) AS total
+        FROM followups WHERE bd_id=?
+      `, [bd.bd_id]);
+      const callAgg = one(`
+        SELECT COUNT(*) AS total_calls,
+               SUM(CASE WHEN duration_seconds=0 THEN 1 ELSE 0 END) AS zero_sec
+        FROM calls WHERE bd_id=?
+      `, [bd.bd_id]);
+
+      assigned += a;
+      contacted += c;
+      salesCount += (s.n || 0);
+      revenue += (s.rev || 0);
+      fuDone += (fu.done || 0);
+      fuTotal += (fu.total || 0);
+      zeroSec += (callAgg.zero_sec || 0);
+      totalCalls += (callAgg.total_calls || 0);
+    }
+
+    const penetration = assigned ? contacted / assigned : 0;
+    const teamCvr = assigned ? salesCount / assigned : 0;
+    const realCvr = contacted ? salesCount / contacted : 0;
+    const chase = fuTotal ? fuDone / fuTotal : 0;
+    const zeroSecPct = totalCalls ? (zeroSec / totalCalls) * 100 : 0;
+
+    // Simple coaching score: rewards penetration/chase/realCvr, penalizes zero-sec rate
+    const coachingScore = Math.round(
+      Math.max(0, Math.min(100,
+        (penetration * 40) + (chase * 30) + (Math.min(realCvr * 100, 20) * 1.5) - (zeroSecPct * 0.5)
+      ))
+    );
+
+    result.push({
+      tl_id: tlId === '__unassigned__' ? null : tlId,
+      tl_name: tlName,
+      bd_count: groupBds.length,
+      leads: assigned,
+      penetration_pct: +(penetration * 100).toFixed(1),
+      team_cvr_pct: +(teamCvr * 100).toFixed(1),
+      real_cvr_pct: +(realCvr * 100).toFixed(1),
+      revenue,
+      chase_pct: +(chase * 100).toFixed(1),
+      coaching_score: coachingScore,
+    });
+  }
+
+  // Sort by revenue desc, but keep "Unassigned" last
+  result.sort((a, b) => {
+    if (a.tl_id === null) return 1;
+    if (b.tl_id === null) return -1;
+    return b.revenue - a.revenue;
+  });
+
+  res.json(result);
+});
+
 module.exports = router;
