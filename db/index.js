@@ -1,74 +1,76 @@
 // ════════════════════════════════════════════════════════════════
-// db/index.js — sql.js (WASM SQLite) wrapper
-// Loads schema + seed on first run, persists to db/riscc.sqlite
+// db/index.js — Postgres (via `pg`) wrapper
+//
+// Same all()/one()/run()/runNoPersist()/persist() API as before, so
+// routes/*.js and db/refresh.js need NO changes to their query calls.
+// Internally converts '?' placeholders to Postgres '$1, $2, ...'.
+//
+// Requires DATABASE_URL env var (set this in Render's Environment tab,
+// pointing at your Render Postgres instance's Internal Database URL).
 // ════════════════════════════════════════════════════════════════
 const fs = require('fs');
 const path = require('path');
-const initSqlJs = require('sql.js');
+const { Pool } = require('pg');
 
-const DB_FILE = path.join(__dirname, 'riscc.sqlite');
 const SCHEMA_FILE = path.join(__dirname, 'schema.sql');
-const SEED_FILE = path.join(__dirname, 'seed.sql');
 
-let SQL = null;
-let db = null;
+let pool = null;
+
+// Convert '?' placeholders (in order) to Postgres '$1,$2,...'
+function toPgQuery(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
 
 async function init() {
-  SQL = await initSqlJs({
-    // sql.js needs to locate its .wasm file
-    locateFile: file => path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', file),
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not set. Add it in Render -> your service -> Environment.');
+  }
+
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }, // Render Postgres requires SSL
   });
 
-  if (fs.existsSync(DB_FILE)) {
-    const fileBuffer = fs.readFileSync(DB_FILE);
-    db = new SQL.Database(fileBuffer);
-    console.log('[db] loaded existing riscc.sqlite');
-  } else {
-    db = new SQL.Database();
-    console.log('[db] creating new database from schema.sql + seed.sql');
+  // Check if schema already applied (e.g. 'leads' table exists)
+  const check = await pool.query(`SELECT to_regclass('public.leads') AS exists`);
+  if (!check.rows[0].exists) {
+    console.log('[db] no schema found — applying schema.sql');
     const schema = fs.readFileSync(SCHEMA_FILE, 'utf8');
-    db.run(schema);
-    if (fs.existsSync(SEED_FILE)) {
-      const seed = fs.readFileSync(SEED_FILE, 'utf8');
-      db.run(seed);
-    }
-    persist();
+    await pool.query(schema);
+    console.log('[db] schema applied');
+  } else {
+    console.log('[db] schema already present');
   }
-  return db;
+
+  return pool;
 }
 
-// Persist in-memory DB to disk (call after any write)
-function persist() {
-  const data = db.export();
-  fs.writeFileSync(DB_FILE, Buffer.from(data));
-}
+// No-op: Postgres writes are durable immediately. Kept for API
+// compatibility with code that calls persist() after bulk loops.
+function persist() {}
 
 // Run a query, return array of row objects
-function all(sql, params = []) {
-  const stmt = db.prepare(sql);
-  if (params.length) stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) rows.push(stmt.getAsObject());
-  stmt.free();
-  return rows;
+async function all(sql, params = []) {
+  const res = await pool.query(toPgQuery(sql), params);
+  return res.rows;
 }
 
 // Run a query, return first row object or null
-function one(sql, params = []) {
-  const rows = all(sql, params);
+async function one(sql, params = []) {
+  const rows = await all(sql, params);
   return rows.length ? rows[0] : null;
 }
 
-// Run a write statement (INSERT/UPDATE/DELETE), persists automatically
-function run(sql, params = []) {
-  db.run(sql, params);
-  persist();
+// Run a write statement (INSERT/UPDATE/DELETE)
+async function run(sql, params = []) {
+  await pool.query(toPgQuery(sql), params);
 }
 
-// Run a write statement WITHOUT persisting to disk (for bulk loops).
-// Call persist() once manually after the loop.
-function runNoPersist(sql, params = []) {
-  db.run(sql, params);
+// Same as run() — Postgres has no separate "no persist" mode, but kept
+// for API compatibility with bulk-loop code in sync.js
+async function runNoPersist(sql, params = []) {
+  await pool.query(toPgQuery(sql), params);
 }
 
-module.exports = { init, all, one, run, runNoPersist, persist, getDb: () => db };
+module.exports = { init, all, one, run, runNoPersist, persist, getPool: () => pool };
