@@ -23,7 +23,7 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 (async () => {
   await dbModule.init();
   console.log('[boot] db ready');
-  const r = refreshAll();
+  const r = await refreshAll();
   console.log('[boot] refresh:', r);
 
   const server = app.listen(0, () => {
