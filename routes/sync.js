@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════
-// routes/sync.js — connector sync jobs (Doc 6 §6 Phase 1: Foundation)
+// routes/sync.js — connector sync jobs (Postgres async version)
 //
 // POST /api/sync/:connector  — triggers a manual sync
 // GET  /api/sync/status      — last sync time per connector
@@ -10,20 +10,24 @@ const axios = require('axios');
 const { one, run, all, runNoPersist, persist } = require('../db');
 const { refreshAll } = require('../db/refresh');
 
-router.get('/status', (req, res) => {
-  const rows = all(`SELECT connector_key, label, enabled, updated_at FROM api_settings`);
-  res.json(rows);
+router.get('/status', async (req, res) => {
+  try {
+    const rows = await all(`SELECT connector_key, label, enabled, updated_at FROM api_settings`);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/:connector', async (req, res) => {
   const { connector } = req.params;
-  const setting = one(`SELECT * FROM api_settings WHERE connector_key=?`, [connector]);
-  if (!setting) return res.status(404).json({ error: 'Unknown connector' });
-  if (!setting.enabled || !setting.api_key) {
-    return res.status(400).json({ error: `${setting.label} is not configured/enabled. Add a key in Settings first.` });
-  }
-
   try {
+    const setting = await one(`SELECT * FROM api_settings WHERE connector_key=?`, [connector]);
+    if (!setting) return res.status(404).json({ error: 'Unknown connector' });
+    if (!setting.enabled || !setting.api_key) {
+      return res.status(400).json({ error: `${setting.label} is not configured/enabled. Add a key in Settings first.` });
+    }
+
     let result;
     switch (connector) {
       case 'ocrm':
@@ -40,7 +44,7 @@ router.post('/:connector', async (req, res) => {
     }
 
     // Recompute materialized tables after any sync
-    const refreshed = refreshAll();
+    const refreshed = await refreshAll();
     res.json({ ok: true, connector, result, refreshed });
   } catch (err) {
     console.error(`[sync:${connector}]`, err.response?.data || err.message);
@@ -49,36 +53,28 @@ router.post('/:connector', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-// OCRM — Testbook Redash query 22764 (lead-level snapshot incl.
-// aggregated calling stats)
+// OCRM — Testbook Redash query (lead-level snapshot incl. aggregated
+// calling stats: Lead_id, Emp_id, assign_BD, sources, Assign_Date,
+// assignOn, lead_Mobile, lead_name, lead_email, Lead_Category, State,
+// currentStatus, lastCallStatus, stage, Open_Closed, Sale_Number,
+// Sale_Date, Sale_Amount, calls, followUpCalls, Chase, Today_Call,
+// callDurationAmeyo, Duration, CallDuration, assign_expOn, team_name,
+// employeeEmail, source_tag)
 //
-// Source: https://data.testbook.com/api/queries/22764/results.json
-// Auth: Redash uses ?api_key=... in the URL (NOT a Bearer header)
-// Response shape: { query_result: { data: { rows: [ {...}, ... ] } } }
+// IMPORTANT — lead-level feed, not a per-call log. Each row = one lead
+// with aggregated call counts/duration. Writes ONE SYNTHETIC `calls`
+// ROW PER LEAD representing the totals. Duration fields are in HOURS
+// -> converted to seconds via *3600 (callDurationAmeyo, then Duration,
+// then CallDuration).
 //
-// IMPORTANT — this is a LEAD-LEVEL feed, not a per-call log. Each row
-// = one lead with aggregated call counts/duration. There is no
-// call_id, per-call timestamp, or recording_url here, so this sync
-// writes ONE SYNTHETIC `calls` ROW PER LEAD representing the totals.
-// Zero-second-call / manipulation-score detection needs a true
-// per-call log and will NOT be accurate from this feed alone.
-//
-// Relevant columns:
-//   Lead_id, Emp_id, assign_BD, sources, Assign_Date, assignOn,
-//   lead_Mobile, lead_name, lead_email, Lead_Category, State,
-//   currentStatus, lastCallStatus, stage, Open_Closed, Sale_Number,
-//   Sale_Date, Sale_Amount, calls, followUpCalls, Chase, Today_Call,
-//   callDurationAmeyo, Duration, CallDuration, assign_expOn
-//
-// Duration fields (callDurationAmeyo / Duration / CallDuration) are
-// in HOURS (e.g. 0.3166666667 ~= 19 min). Converted to seconds via
-// hours * 3600. callDurationAmeyo used first, falling back to
-// Duration then CallDuration.
+// payment_type (sales sync) logic:
+//   emiId present/non-empty -> 'EMI'
+//   emiId blank + paidAmount < netAmount -> 'Partial'
+//   emiId blank + paidAmount >= netAmount -> 'Full'
 // ────────────────────────────────────────────────────────────────
 async function syncOcrm(setting) {
   const extra = JSON.parse(setting.extra_config || '{}');
 
-  // Redash: API key goes in the query string, not a header
   const url = setting.base_url.includes('api_key=')
     ? setting.base_url
     : `${setting.base_url}${setting.base_url.includes('?') ? '&' : '?'}api_key=${setting.api_key}`;
@@ -110,25 +106,25 @@ async function syncOcrm(setting) {
       tlName = tlName.replace(/\s*(ATL\s*)?\((Select|AGM|ASM)\)\s*$/, '').trim();
       if (tlName) {
         tlId = `tl_${tlName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
-        const tlExists = one(`SELECT tl_id FROM team_leaders WHERE tl_id=?`, [tlId]);
+        const tlExists = await one(`SELECT tl_id FROM team_leaders WHERE tl_id=?`, [tlId]);
         if (!tlExists) {
-          runNoPersist(`INSERT INTO team_leaders (tl_id, name) VALUES (?, ?) ON CONFLICT(tl_id) DO NOTHING`, [tlId, tlName]);
+          await runNoPersist(`INSERT INTO team_leaders (tl_id, name) VALUES (?, ?) ON CONFLICT(tl_id) DO NOTHING`, [tlId, tlName]);
         }
       }
     }
 
     // Ensure BD exists (lead-level feed may reference BDs not seen in sales sync)
     if (bdId) {
-      const exists = one(`SELECT bd_id, team_leader_id FROM bds WHERE bd_id=?`, [bdId]);
+      const exists = await one(`SELECT bd_id, team_leader_id FROM bds WHERE bd_id=?`, [bdId]);
       if (!exists) {
-        runNoPersist(`
+        await runNoPersist(`
           INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
-          VALUES (?, ?, ?, ?, date('now'), 'Active', 0, 0)
+          VALUES (?, ?, ?, ?, CURRENT_DATE, 'Active', 0, 0)
           ON CONFLICT(bd_id) DO NOTHING
         `, [bdId, r.employeeEmail || bdId, tlId, r.team_name ? `team_${r.team_name}` : null]);
       } else if (tlId && !exists.team_leader_id) {
         // backfill team_leader_id for BDs created before this mapping existed
-        runNoPersist(`UPDATE bds SET team_leader_id=? WHERE bd_id=?`, [tlId, bdId]);
+        await runNoPersist(`UPDATE bds SET team_leader_id=? WHERE bd_id=?`, [tlId, bdId]);
       }
     }
 
@@ -170,7 +166,7 @@ async function syncOcrm(setting) {
     }
 
     // ── upsert lead ──
-    runNoPersist(`
+    await runNoPersist(`
       INSERT INTO leads (lead_id, phone_normalized, crm_id, email, name, source, campaign_id, state, category, assigned_bd_id, assigned_date, status, temperature, last_call_date, last_crm_update, created_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(lead_id) DO UPDATE SET
@@ -199,7 +195,6 @@ async function syncOcrm(setting) {
     leadsUpserted++;
 
     // ── synthetic `calls` row — one per lead, aggregated totals ──
-    // NOTE: not a true per-call log. duration fields are in hours -> *3600 for seconds.
     const totalCalls = parseInt(r.calls, 10) || 0;
     if (totalCalls > 0 && bdId) {
       const durHours = parseFloat(r.callDurationAmeyo)
@@ -209,7 +204,7 @@ async function syncOcrm(setting) {
       const durationSeconds = Math.round(durHours * 3600);
       const outcome = r.lastCallStatus || r.currentStatus || 'Unknown';
 
-      runNoPersist(`
+      await runNoPersist(`
         INSERT INTO calls (call_id, lead_id, bd_id, call_timestamp, duration_seconds, outcome, recording_url, crm_logged, crm_log_time)
         VALUES (?,?,?,?,?,?,?,?,?)
         ON CONFLICT(call_id) DO UPDATE SET
@@ -236,7 +231,7 @@ async function syncOcrm(setting) {
         ? 'Done'
         : (needsChase ? 'Pending' : 'Done');
 
-      runNoPersist(`
+      await runNoPersist(`
         INSERT INTO followups (followup_id, lead_id, bd_id, scheduled_date, actual_followup_date, gap_hours, status)
         VALUES (?,?,?,?,?,?,?)
         ON CONFLICT(followup_id) DO UPDATE SET
@@ -258,7 +253,7 @@ async function syncOcrm(setting) {
   persist();
 
   const newExtra = { ...extra, last_sync: new Date().toISOString(), last_row_count: rows.length };
-  run(`UPDATE api_settings SET extra_config=? WHERE connector_key='ocrm'`, [JSON.stringify(newExtra)]);
+  await run(`UPDATE api_settings SET extra_config=? WHERE connector_key='ocrm'`, [JSON.stringify(newExtra)]);
 
   return {
     rows_received: rows.length,
@@ -270,16 +265,14 @@ async function syncOcrm(setting) {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Sales API — Testbook Redash query 22259 (transactions feed)
-//
-// Source: https://data.testbook.com/api/queries/22259/results.json
-// Auth: Redash uses ?api_key=... in the URL (NOT a Bearer header)
-// Response shape: { query_result: { data: { rows: [ {...}, ... ] } } }
-//
-// payment_type logic:
-//   emiId present/non-empty -> 'EMI'
-//   emiId blank + paidAmount < netAmount -> 'Partial'
-//   emiId blank + paidAmount >= netAmount -> 'Full' (paid in full at once)
+// Sales API — Testbook Redash query (transactions feed)
+// Columns: mobile, pid, signUpDate, product, email, paymentMethod,
+// TxnOn, Txnmonth, center, signUpMonth, Amount, platformFees,
+// paidAmount, Goal, refund, sid, date, empCode, Agent, AgentEmpId,
+// AgentEmail, AgentMobile, Student, Team, ocrm_transId, paymentMode,
+// couponCode, couponType, DaysValidity, source, TxnId, client, goalId,
+// expiresOn, paymentGateway, emiId, eBookRevenue, bookRevenue,
+// productRevenue, status, dp, centerType, netAmount
 // ────────────────────────────────────────────────────────────────
 async function syncSalesApi(setting) {
   const extra = JSON.parse(setting.extra_config || '{}');
@@ -305,11 +298,11 @@ async function syncSalesApi(setting) {
     const bdId = r.AgentEmpId ? `bd_${String(r.AgentEmpId).trim()}` : null;
     if (bdId && !seenBds.has(bdId)) {
       seenBds.add(bdId);
-      const exists = one(`SELECT bd_id FROM bds WHERE bd_id=?`, [bdId]);
+      const exists = await one(`SELECT bd_id FROM bds WHERE bd_id=?`, [bdId]);
       if (!exists) {
-        runNoPersist(`
+        await runNoPersist(`
           INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
-          VALUES (?, ?, NULL, ?, date('now'), 'Active', 0, 0)
+          VALUES (?, ?, NULL, ?, CURRENT_DATE, 'Active', 0, 0)
           ON CONFLICT(bd_id) DO NOTHING
         `, [bdId, r.Agent || bdId, r.Team ? `team_${r.Team}` : null]);
         bdsCreated++;
@@ -319,9 +312,9 @@ async function syncSalesApi(setting) {
     const leadId = r.sid ? `lead_${String(r.sid).trim()}` : (r.mobile ? `lead_m${r.mobile}` : null);
     if (leadId && !seenLeads.has(leadId)) {
       seenLeads.add(leadId);
-      const exists = one(`SELECT lead_id FROM leads WHERE lead_id=?`, [leadId]);
+      const exists = await one(`SELECT lead_id FROM leads WHERE lead_id=?`, [leadId]);
       if (!exists) {
-        runNoPersist(`
+        await runNoPersist(`
           INSERT INTO leads (lead_id, phone_normalized, crm_id, email, name, source, campaign_id, state, category, assigned_bd_id, assigned_date, status, temperature, last_call_date, last_crm_update, created_at)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
           ON CONFLICT(lead_id) DO NOTHING
@@ -347,12 +340,13 @@ async function syncSalesApi(setting) {
     if (refundAmt > 0 || (r.status && /refund/i.test(r.status))) status = 'Refunded';
     else if (r.status && /hold|pending/i.test(r.status)) status = 'On Hold';
 
+    // payment_type: emiId blank => 'Full' (unless paidAmount < netAmount -> 'Partial'). emiId present => 'EMI'.
     let paymentType = 'Full';
     const emiId = (r.emiId || '').toString().trim();
     if (emiId) paymentType = 'EMI';
     else if (paid > 0 && paid < net) paymentType = 'Partial';
 
-    runNoPersist(`
+    await runNoPersist(`
       INSERT INTO sales (order_id, lead_id, bd_id, course_id, gross_amount, waiver_amount, net_amount, sale_date, payment_type, status)
       VALUES (?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET
@@ -367,7 +361,7 @@ async function syncSalesApi(setting) {
     ]);
     upserted++;
 
-    runNoPersist(`
+    await runNoPersist(`
       INSERT INTO collections (collection_id, order_id, amount_due, amount_collected, due_date, payment_date, status)
       VALUES (?,?,?,?,?,?,?)
       ON CONFLICT(collection_id) DO UPDATE SET
@@ -383,7 +377,7 @@ async function syncSalesApi(setting) {
   persist();
 
   const newExtra = { ...extra, last_sync: new Date().toISOString(), last_row_count: rows.length };
-  run(`UPDATE api_settings SET extra_config=? WHERE connector_key='sales_api'`, [JSON.stringify(newExtra)]);
+  await run(`UPDATE api_settings SET extra_config=? WHERE connector_key='sales_api'`, [JSON.stringify(newExtra)]);
 
   return { rows_received: rows.length, transactions_upserted: upserted, bds_created: bdsCreated, leads_created: leadsCreated };
 }
@@ -405,7 +399,7 @@ async function syncGoogleSheets(setting) {
     for (let i = 1; i < rows.length; i++) {
       const [key, value] = rows[i];
       if (!key) continue;
-      run(`INSERT INTO config (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [key.trim(), (value || '').trim()]);
+      await run(`INSERT INTO config (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [key.trim(), (value || '').trim()]);
       updated++;
     }
   }
