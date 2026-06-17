@@ -98,6 +98,9 @@ async function syncOcrm(setting) {
       ? `bd_${String(r.Emp_id || r.assign_BD).trim()}`
       : null;
 
+    // helper: safely truncate a string to max length
+    const trunc = (val, max) => val ? String(val).slice(0, max) : null;
+
     // ── Team Leader: derive from team_name (e.g. "Team Maneesh ATL (Select)" -> "Maneesh") ──
     let tlId = null;
     if (r.team_name) {
@@ -105,10 +108,10 @@ async function syncOcrm(setting) {
       tlName = tlName.replace(/^Team\s+/, '');
       tlName = tlName.replace(/\s*(ATL\s*)?\((Select|AGM|ASM)\)\s*$/, '').trim();
       if (tlName) {
-        tlId = `tl_${tlName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
+        tlId = `tl_${tlName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`.slice(0, 50);
         const tlExists = await one(`SELECT tl_id FROM team_leaders WHERE tl_id=?`, [tlId]);
         if (!tlExists) {
-          await runNoPersist(`INSERT INTO team_leaders (tl_id, name) VALUES (?, ?) ON CONFLICT(tl_id) DO NOTHING`, [tlId, tlName]);
+          await runNoPersist(`INSERT INTO team_leaders (tl_id, name) VALUES (?, ?) ON CONFLICT(tl_id) DO NOTHING`, [tlId, trunc(tlName, 100)]);
         }
       }
     }
@@ -116,12 +119,15 @@ async function syncOcrm(setting) {
     // Ensure BD exists (lead-level feed may reference BDs not seen in sales sync)
     if (bdId) {
       const exists = await one(`SELECT bd_id, team_leader_id FROM bds WHERE bd_id=?`, [bdId]);
+      // BD name: prefer Agent name over email (emails can exceed 100 chars)
+      const bdName = trunc(r.Agent || r.employeeEmail || bdId, 100);
+      const teamId = trunc(r.team_name ? `team_${r.team_name}` : null, 50);
       if (!exists) {
         await runNoPersist(`
           INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
           VALUES (?, ?, ?, ?, CURRENT_DATE, 'Active', 0, 0)
           ON CONFLICT(bd_id) DO NOTHING
-        `, [bdId, r.employeeEmail || bdId, tlId, r.team_name ? `team_${r.team_name}` : null]);
+        `, [bdId, bdName, tlId, teamId]);
       } else if (tlId && !exists.team_leader_id) {
         // backfill team_leader_id for BDs created before this mapping existed
         await runNoPersist(`UPDATE bds SET team_leader_id=? WHERE bd_id=?`, [tlId, bdId]);
