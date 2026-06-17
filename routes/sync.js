@@ -93,13 +93,42 @@ async function syncOcrm(setting) {
   for (const r of rows) {
     const leadId = r.Lead_id ? `lead_${String(r.Lead_id).trim()}` : null;
     if (!leadId) continue;
+    // Universal truncation helper — applied to every string field before DB insert
+    const trunc = (val, max) => val ? String(val).slice(0, max) : null;
+    // Pre-sanitize all fields that go into fixed-length columns
+    // Log any field that might exceed its column limit (remove after confirmed working)
+    const fieldLengths = {
+      lead_name: String(r.lead_name||'').length,
+      lead_email: String(r.lead_email||'').length,
+      lead_mobile: String(r.lead_Mobile||'').length,
+      source: String(r.source_tag||'').length,
+      state: String(r.State||'').length,
+      category: String(r.Lead_Category||'').length,
+      team_name: String(r.team_name||'').length,
+      employee_email: String(r.employeeEmail||'').length,
+      outcome: String(r.lastCallStatus||r.currentStatus||'').length,
+      assign_expOn: String(r.assign_expOn||'').length,
+    };
+    const overLimit = Object.entries(fieldLengths).filter(([k,v]) => v > 100);
+    if (overLimit.length) console.warn('[ocrm] overlimit fields Lead_id', r.Lead_id, overLimit);
+
+    const safe = {
+      lead_name:     safe.lead_name,
+      lead_email:    safe.lead_email,
+      lead_mobile:   safe.lead_mobile,
+      source_tag:    trunc(r.source_tag, 50),
+      state:         safe.state,
+      category:      safe.category,
+      assignOn:      r.assignOn || r.Assign_Date || new Date().toISOString(),
+      crm_id:        safe.crm_id,
+      outcome:       safe.outcome,
+      team_name_id:  trunc(r.team_name ? `team_${r.team_name}` : null, 50),
+      bd_name:       trunc(r.Agent || r.employeeEmail || '', 100),
+    };
 
     const bdId = (r.Emp_id || r.assign_BD)
       ? `bd_${String(r.Emp_id || r.assign_BD).trim()}`
       : null;
-
-    // helper: safely truncate a string to max length
-    const trunc = (val, max) => val ? String(val).slice(0, max) : null;
 
     // ── Team Leader: derive from team_name (e.g. "Team Maneesh ATL (Select)" -> "Maneesh") ──
     let tlId = null;
@@ -120,8 +149,8 @@ async function syncOcrm(setting) {
     if (bdId) {
       const exists = await one(`SELECT bd_id, team_leader_id FROM bds WHERE bd_id=?`, [bdId]);
       // BD name: prefer Agent name over email (emails can exceed 100 chars)
-      const bdName = trunc(r.Agent || r.employeeEmail || bdId, 100);
-      const teamId = trunc(r.team_name ? `team_${r.team_name}` : null, 50);
+      const bdName = safe.bd_name || bdId;
+      const teamId = safe.team_name_id;
       if (!exists) {
         await runNoPersist(`
           INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
@@ -182,14 +211,14 @@ async function syncOcrm(setting) {
         category=excluded.category, state=excluded.state
     `, [
       leadId,
-      r.lead_Mobile || null,
-      String(r.Lead_id || ''),
-      r.lead_email || null,
-      r.lead_name || null,
-      source,
+      trunc(r.lead_Mobile, 15),
+      trunc(String(r.Lead_id || ''), 50),
+      trunc(r.lead_email, 100),
+      trunc(r.lead_name, 100),
+      trunc(source, 50),
       null,
-      r.State || null,
-      r.Lead_Category || 'Fresh',
+      trunc(r.State, 50),
+      trunc(r.Lead_Category || 'Fresh', 50),
       bdId,
       r.Assign_Date || r.assignOn || new Date().toISOString(),
       status,
@@ -208,7 +237,7 @@ async function syncOcrm(setting) {
         || parseFloat(r.CallDuration)
         || 0;
       const durationSeconds = Math.round(durHours * 3600);
-      const outcome = r.lastCallStatus || r.currentStatus || 'Unknown';
+      const outcome = trunc(r.lastCallStatus || r.currentStatus || 'Unknown', 50);
 
       await runNoPersist(`
         INSERT INTO calls (call_id, lead_id, bd_id, call_timestamp, duration_seconds, outcome, recording_url, crm_logged, crm_log_time)
