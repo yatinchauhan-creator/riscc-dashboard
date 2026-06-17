@@ -300,8 +300,7 @@ table.t tr:hover .td-action{opacity:1}
       <button class="cop-ph-close" onclick="toggleCop()">✕</button>
     </div>
     <div class="cop-msgs" id="cop-msgs">
-      <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> At current pace, will we hit target?</div>
-      <div class="cmsg cmsg-a"><strong>RISCC —</strong> No — forecast ₹2.61Cr vs ₹2.80Cr target (₹19L gap). Run rate ₹9.6L/day needs to reach ₹15.8L/day. Closable if 163 leads reallocated today + 34 overdue hot leads actioned by week end. Note: 3 BDs had no calls logged yesterday — data may be incomplete. Want me to model the reallocation scenario?</div>
+      <div class="cmsg cmsg-a"><strong>RISCC —</strong> Hi! Ask me anything about your team's performance, leads, revenue or forecast. I'll answer using your live data.</div>
     </div>
     <div class="cop-foot">
       <input type="text" id="cop-in" placeholder="Ask anything — ⌘K…"/>
@@ -418,22 +417,37 @@ function initSparks(){
 }
 
 // ── INSIGHT RIBBON DATA ──────────────────────────────────────────
-const INSIGHTS=[
-  ['P0','BD performance','Rahul S. — manipulation score 88, auto-escalated. Freeze allocation + reassign 54 leads by EOD.','344 zero-second calls detected. Manip. score 88/100. Real CVR 4.1% on 44 actual calls.','Meena V. to freeze Rahul S., reallocate 54 leads to Priya K. + Sneha G., audit 3 recordings by 12 PM.','b-p0'],
-  ['P0','Lead intelligence','738 uncontacted leads — 26% above 25% threshold. ₹64.4L pipeline at risk.','738/2,841 = 26% uncontacted. Rising 3 consecutive days. BD scores 0.18 + 0.28 for responsible BDs.','Reallocate 163 leads from Rahul S. + Varun T. to top-score BDs. Run allocation engine now.','b-p0'],
-  ['P1','Source quality','WhatsApp CPL +122% — ROI 3%. Cut ₹80K/wk and shift to Facebook.','CPL rose ₹820→₹1,820. CAC ₹75,833 vs Facebook ₹8,632. CVR flat at 3.1%.','Reallocate ₹80K/wk to Facebook for 12 remaining days. Expected +₹4.8L uplift.','b-p1'],
-  ['P1','Follow-up risk','Chase compliance 54% — below 65% trigger. 34 hot leads expired.','FU Done/Scheduled = 54%. Avg gap 2.8 days (trigger >2d). 34 Hot-temp leads overdue >24h.','TLs to call BDs with >5 missed FUs now. Reassign Arjun S. + Divya R. immediately.','b-p1']
-];
-document.getElementById('ribbon-body').innerHTML = INSIGHTS.map(([pr,cat,title,ev,action,badgeCls],i)=>`
+// AI Ribbon — populated dynamically from live data
+async function loadRibbon(){
+  try {
+    const [exec, fu, bd] = await Promise.all([
+      fetch('/api/exec-summary').then(r=>r.json()),
+      fetch('/api/followups').then(r=>r.json()),
+      fetch('/api/bd-performance').then(r=>r.json()),
+    ]);
+    const insights = [];
+    const fmtCr = v => v>=10000000?'₹'+(v/10000000).toFixed(2)+'Cr':v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+Math.round(v).toLocaleString('en-IN');
+    // Uncontacted leads alert
+    if(exec.leads.uncontacted_pct>25) insights.push({pr:'P0',cls:'b-p0',cat:'Lead intelligence',title:`${exec.leads.uncontacted} uncontacted leads — ${exec.leads.uncontacted_pct}% above 25% threshold`});
+    // Target gap
+    if(exec.revenue.pct_of_target<70) insights.push({pr:'P1',cls:'b-p1',cat:'Revenue',title:`Only ${exec.revenue.pct_of_target}% of target achieved — gap: ${fmtCr(exec.revenue.gap_to_target)}`});
+    // Follow-up compliance
+    if(fu && fu.chase_compliance_pct<65) insights.push({pr:'P1',cls:'b-p1',cat:'Follow-up risk',title:`Chase compliance ${fu.chase_compliance_pct}% — below 65% trigger. ${fu.hot_leads_missed} hot leads missed.`});
+    // Manipulation flags
+    if(bd) { const flags=bd.filter(b=>b.manipulation_score>80); if(flags.length) flags.forEach(b=>insights.push({pr:'P0',cls:'b-p0',cat:'BD performance',title:`${b.name} — manipulation score ${b.manipulation_score}, auto-escalated`})); }
+    const rb = document.getElementById('ribbon-body');
+    if(!rb) return;
+    if(!insights.length){ rb.innerHTML='<div style="padding:12px;color:var(--muted);font-size:12px">No critical alerts — all metrics within thresholds ✓</div>'; return; }
+    rb.innerHTML = insights.map((ins,i)=>`
 <div class="ins-card" id="ins${i}" onclick="toggleIns(${i})">
-  <div class="ins-meta"><span class="badge ${badgeCls}">${pr}</span><span style="font-size:10px;color:var(--muted)">${cat}</span></div>
-  <div class="ins-title">${title}</div>
-  <div class="ins-body">
-    <div style="margin-bottom:5px"><strong style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Evidence</strong><br>${ev}</div>
-    <div><strong style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Recommended action</strong><br>${action}</div>
-    <div class="ins-actions"><button class="ins-btn addressed" onclick="event.stopPropagation()"><i class="ti ti-check"></i> Mark addressed</button><button class="ins-btn" onclick="event.stopPropagation()">Drill in ↗</button></div>
-  </div>
-</div>`).join('') + `<div style="margin-top:8px;padding:8px 0;border-top:0.5px solid var(--border);text-align:center"><button style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer">View 34 more insights ↓</button></div>`;
+  <div class="ins-meta"><span class="badge ${ins.cls}">${ins.pr}</span><span style="font-size:10px;color:var(--muted)">${ins.cat}</span></div>
+  <div class="ins-title">${ins.title}</div>
+  <div class="ins-body"><div class="ins-actions"><button class="ins-btn addressed" onclick="event.stopPropagation()"><i class="ti ti-check"></i> Mark addressed</button></div></div>
+</div>`).join('');
+    document.querySelector('.ribbon-title span').textContent=`AI Insights (${insights.length})`;
+  } catch(e){ console.error('ribbon error',e); }
+}
+loadRibbon();
 
 // ══════════════════════════════════════════════════════════════════
 // PAGES
@@ -443,462 +457,165 @@ const PAGES={
 'exec':`
 <div class="filters-bar">
   <div class="filter-group"><span class="filter-label">Period:</span>
-    <select class="fsel"><option>MTD Jun 2026</option><option>Last 7 days</option><option>Last 30 days</option><option>QTD</option></select>
+    <select class="fsel"><option>MTD</option><option>Last 7 days</option><option>Last 30 days</option></select>
   </div>
   <div class="filter-group"><span class="filter-label">BD:</span>
-    <select class="fsel"><option>All BDs</option><option>Priya K.</option><option>Ajay M.</option><option>Sneha G.</option><option>Rahul S.</option></select>
-  </div>
-  <div class="filter-group"><span class="filter-label">Source:</span>
-    <select class="fsel"><option>All Sources</option><option>Facebook</option><option>Google</option><option>YouTube</option><option>Organic</option><option>WhatsApp</option></select>
-  </div>
-  <div class="filter-group"><span class="filter-label">TL:</span>
-    <select class="fsel"><option>All Teams</option><option>Anand R.</option><option>Meena V.</option></select>
+    <select class="fsel" id="exec-bd-filter"><option value="">All BDs</option></select>
   </div>
   <button class="filter-reset">Reset All ✕</button>
 </div>
-
-<div class="sl">Section A — Revenue</div>
-<div class="kgrid">
-  ${kcard('Net Revenue','₹1.84Cr','↑ 12% vs last month','up','g','8.2,9.1,7.4,11.3,8.8,10.2,9.6')}
-  ${kcard('Gross Revenue','₹2.09Cr','Revenue gap: 12.0%','nt','y','8.9,9.8,8.1,12.0,9.4,11.0,10.4')}
-  ${kcard('Revenue Target','₹2.80Cr','₹19L gap to close','dn','y','9.3,9.3,9.3,9.3,9.3,9.3,9.3')}
-  ${kcard('% of Target','65.7%','Yellow zone · needs ₹15.8L/day','nt','y','55,58,60,62,63,65,65.7')}
-  ${kcard('Forecast (EOM)','₹2.61Cr','81% confidence · High','up','g','2.1,2.2,2.3,2.4,2.5,2.55,2.61')}
-  ${kcard('Revenue at Risk','₹12.8L','347 uncontacted leads','dn','r','18,17,15,14,13,12.8,12.8')}
-</div>
-
-<div class="sl">Section B — Sales & CVR</div>
-<div class="kgrid">
-  ${kcard('Total Sales MTD','236','↑ 8% vs last month','up','g','168,182,195,208,218,228,236')}
-  ${kcard('Real CVR %','11.2%','Most important metric','up','g','9.8,10.1,10.4,10.8,11.0,11.2,11.2')}
-  ${kcard('Overall CVR %','8.3%','Sales / Assigned','nt','y','7.8,7.9,8.0,8.1,8.2,8.3,8.3')}
-  ${kcard('Avg Ticket Size','₹77.9K','Net revenue / 236 sales','up','g','74,75,76,77,77.5,77.9,77.9')}
-</div>
-
+<div class="sl">Revenue</div>
+<div class="kgrid" id="exec-rev-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
+<div class="sl">Sales & CVR</div>
+<div class="kgrid" id="exec-sales-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
 <div class="g2">
-  <div class="card">
-    <div class="card-hdr"><div class="card-title">Daily Revenue vs Target</div><div class="card-actions">${btn('Export CSV')}</div></div>
-    <div class="cw"><canvas id="revChart"></canvas></div>
-  </div>
-  <div class="card">
-    <div class="card-hdr"><div class="card-title">Target Achievement</div><div class="card-sub">Gauge — MTD</div></div>
-    <div class="gauge-wrap">
-      <canvas id="gaugeChart" style="width:160px;height:160px"></canvas>
-      <div class="gauge-val">65.7%</div>
-      <div class="gauge-target">of ₹2.80Cr target · ₹19L gap</div>
-    </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Daily Revenue vs Target</div></div><div class="cw"><canvas id="revChart"></canvas></div></div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Target Achievement</div></div>
+    <div class="gauge-wrap"><canvas id="gaugeChart" style="width:160px;height:160px"></canvas>
+    <div class="gauge-val" id="exec-gauge-val">—</div>
+    <div class="gauge-target" id="exec-gauge-target">Loading…</div></div>
   </div>
 </div>
-
-<div class="sl">Section C — Lead coverage</div>
-<div class="kgrid">
-  ${kcard('Assigned','2,841','MTD total','nt','g','2200,2350,2480,2590,2680,2760,2841')}
-  ${kcard('Contacted','2,103','74% penetration','kw','y','1600,1700,1780,1850,1920,2040,2103')}
-  ${kcard('Uncontacted','738','⚠ 26% — above 25% alert','dn','r','750,740,745,740,738,738,738')}
-  ${kcard('Stale (15d+)','182','Last call >15 days','dn','r','140,150,158,165,170,178,182')}
-</div>
-
-<div class="sl">Section D — AI priority actions · Analyst Agent · 9:00 AM</div>
-<div class="card">
-${[['P0','Rahul S. manipulation score 88 — auto-escalated. Freeze + reassign 54 leads to Priya K. + Sneha G. by EOD.','₹8.4L at risk','Meena V.','var(--accent)','ti-urgent'],
-   ['P0','738 uncontacted leads (26%). ₹64.4L pipeline at risk. Lead Allocation Engine flagged 3 BDs for reduction.','₹64.4L pipeline','Rev Ops','var(--accent)','ti-alert-circle'],
-   ['P1','WhatsApp CPL +122% (trigger: 30%). CAC ₹75,833 vs Facebook ₹8,632. Shift ₹80K/wk to Facebook.','₹4.8L upside','Marketing','var(--warning)','ti-chart-bar'],
-   ['P1','Chase compliance 54% (trigger <65%). Avg FU gap 2.8d (trigger >2d). 34 hot leads missed.','₹16.4L at risk','All TLs','var(--warning)','ti-alert-circle'],
-   ['P2','Forecast tracking ₹19L below target — not yet at 25% trajectory trigger. Monitor.','₹19L gap','CRO','var(--mid)','ti-eye']
-].map(([pr,txt,amt,own,c,ic])=>`
-<div style="display:flex;gap:10px;align-items:flex-start;padding:9px;background:var(--bg);border-radius:8px;margin-bottom:7px;border:0.5px solid var(--border)">
-  <i class="ti ${ic}" style="color:${c};font-size:15px;flex-shrink:0;margin-top:1px"></i>
-  <div style="flex:1;font-size:13px;color:var(--text);line-height:1.5">${txt}
-    <div style="margin-top:5px;display:flex;align-items:center;gap:7px">
-      <span class="badge ${pr==='P0'?'b-p0':pr==='P1'?'b-p1':'b-p2'}">${pr}</span>
-      <span style="font-size:11px;color:var(--muted)">${amt}</span>
-      <span style="font-size:11px;color:var(--muted)">Owner: ${own}</span>
-    </div>
-  </div>
-</div>`).join('')}
-</div>`,
+<div class="sl">Lead Coverage</div>
+<div class="kgrid" id="exec-lead-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
+<div class="sl">AI Priority Actions</div>
+<div class="card" id="exec-actions-card"><div style="padding:16px;color:var(--muted);text-align:center">Loading actions…</div></div>`
 
 'bd':`
-<div class="sl">BD Summary · v_bd_daily_summary · refreshed every 15 min</div>
+<div class="sl">BD Performance · refreshed every 15 min</div>
 <div class="card">
-<div class="card-hdr">
-  <div class="card-title">BD Performance Table</div>
-  <div class="card-actions">${btn('Sort by CVR')} ${btn('Export CSV')} ${btn('Export Excel')}</div>
+  <div class="card-hdr"><div class="card-title">BD Performance Table</div><div class="card-actions">${btn('Export CSV')}</div></div>
+  <div class="tw"><table class="t" id="bd-table">
+    <thead><tr><th>BD</th><th>TL</th><th>Assigned</th><th>Penetration</th><th>Connected</th><th>Talktime</th><th>Chase %</th><th>Sales</th><th>Real CVR %</th><th>Revenue</th><th>Manip.</th><th>BD Score</th><th>Status</th></tr></thead>
+    <tbody><tr><td colspan="13" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table></div>
 </div>
-<div class="tw">
-<table class="t">
-<thead><tr>
-  <th onclick="sortTbl(this)">BD ▲</th><th onclick="sortTbl(this)">Assigned</th><th onclick="sortTbl(this)">Penetration</th>
-  <th onclick="sortTbl(this)">Connected</th><th onclick="sortTbl(this)">Talktime</th><th onclick="sortTbl(this)">Chase %</th>
-  <th onclick="sortTbl(this)">Sales</th><th onclick="sortTbl(this)">Real CVR %</th><th onclick="sortTbl(this)">Revenue</th>
-  <th onclick="sortTbl(this)">Manip.</th><th onclick="sortTbl(this)">BD Score</th><th>Status</th><th>Actions</th>
-</tr></thead>
-<tbody>
-${[['Priya K.','Anand',280,'93%','ku',892,'92h','88%','ku',39,'14.1%','ku','₹30.4L',6,'ku','0.84','ku','Star','b-ok'],
-   ['Ajay M.','Anand',260,'92%','ku',766,'78h','83%','',31,'12.0%','ku','₹24.2L',9,'ku','0.78','ku','Star','b-ok'],
-   ['Sneha G.','Meena',245,'89%','',698,'66h','70%','kw',22,'9.2%','','₹17.1L',14,'ku','0.67','','On track','b-muted'],
-   ['Neha R.','Meena',230,'82%','',571,'54h','65%','kw',16,'7.8%','','₹12.5L',22,'kw','0.61','','Watch','b-warn'],
-   ['Kabir D.','Anand',220,'79%','kw',503,'48h','57%','kw',13,'7.2%','','₹10.1L',28,'kw','0.55','kw','Watch','b-warn'],
-   ['Varun T.','Anand',218,'59%','kd',329,'28h','41%','kd',7,'3.2%','kd','₹5.4L',71,'kd','0.28','kd','Reduce','b-bad'],
-   ['Rahul S.*','Meena',210,'53%','kd',44,'8h*','38%','kd',9,'4.1%','kd','₹7.0L',88,'kd','0.18','kd','⚠ Freeze','b-bad']
-].map(([n,tl,asgn,pen,penC,conn,tt,chase,chaseC,sales,cvr,cvrC,rev,manip,manipC,score,scoreC,status,statCls])=>`
-<tr>
-  <td><a href="#" style="color:var(--primary);text-decoration:none;font-weight:500" onclick="event.preventDefault()">${n}</a><br><span style="font-size:10px;color:var(--muted)">TL: ${tl}</span></td>
-  <td>${asgn}</td><td class="${penC}">${pen}</td><td>${conn}</td><td>${tt}</td>
-  <td class="${chaseC}">${chase}</td><td>${sales}</td><td class="${cvrC}" style="font-weight:600">${cvr}</td>
-  <td style="font-weight:500">${rev}</td><td class="${manipC}" style="font-weight:600">${manip}</td>
-  <td>${sbar(Math.round(parseFloat(score)*100),parseFloat(score)>0.7?'#16A34A':parseFloat(score)>0.5?'#D97706':'#C0392B')} <span class="${scoreC}" style="font-size:11px">${score}</span></td>
-  <td>${badge(status,statCls)}</td>
-  <td><div class="td-action">${btn('View')} ${btn('Call')} ${btn('Reassign')}</div></td>
-</tr>`).join('')}
-</tbody></table></div>
-<div style="font-size:11px;color:var(--muted);margin-top:7px;font-family:'JetBrains Mono',monospace">* After zero-second call exclusion. BD_Score = (CVR×0.4)+(Chase×0.25)+(Penetration×0.2)+(1−Manip/100×0.15)</div>
-</div>
-
 <div class="g2">
-  <div class="card"><div class="card-hdr"><div class="card-title">Performance Quadrant</div><div class="card-sub">Avg call duration vs Real CVR</div></div>
-    <div class="cw"><canvas id="qc"></canvas></div>
-  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Performance Quadrant</div><div class="card-sub">Avg talktime vs Real CVR</div></div><div class="cw"><canvas id="qc"></canvas></div></div>
   <div class="card"><div class="card-hdr"><div class="card-title">Anti-Manipulation Engine</div><div class="card-sub">Score >60 flagged · >80 auto-escalate</div></div>
-    <table class="t"><thead><tr><th>BD</th><th>Score</th><th>Key signals</th><th>Status</th></tr></thead>
-    <tbody>
-      <tr><td>Rahul S.</td><td class="kd" style="font-weight:700">88</td><td style="font-size:11px">zero-sec +20, rapid-dial +15, ghost-FU +15, avg-dur +10, CVR-inflate +10</td><td>${badge('Auto-escalate','b-p0')}</td></tr>
-      <tr><td>Varun T.</td><td class="kw" style="font-weight:700">71</td><td style="font-size:11px">ghost-FU +15, rapid-dial +15, after-hrs +10, zero-sec +8</td><td>${badge('Flagged','b-p1')}</td></tr>
-      <tr><td>Dev P.</td><td style="font-weight:700">34</td><td style="font-size:11px">after-hrs +10, ghost-FU +15, zero-sec +5</td><td>${badge('Watch','b-warn')}</td></tr>
-      <tr><td>Priya K.</td><td class="ku" style="font-weight:700">6</td><td style="font-size:11px">No signals detected</td><td>${badge('Clean','b-ok')}</td></tr>
-    </tbody></table>
+    <table class="t" id="manip-table"><thead><tr><th>BD</th><th>Score</th><th>Key signals</th><th>Status</th></tr></thead>
+    <tbody><tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody></table>
   </div>
-</div>`,
+</div>`
 
 'source':`
-<div class="sl">Source performance · v_source_performance · CAC = Spend/Sales · ROI = (Rev−Spend)/Spend×100</div>
+<div class="sl">Source performance · CAC = Spend/Sales · ROI = (Rev−Spend)/Spend×100</div>
 <div class="card">
-<div class="card-hdr"><div class="card-title">Source ROI Table</div><div class="card-actions">${btn('Export CSV')} ${btn('Export Excel')}</div></div>
-<div class="tw"><table class="t">
-<thead><tr><th>Source</th><th>Leads</th><th>CPL</th><th>CVR %</th><th>Real CVR %</th><th>Revenue</th><th>CAC</th><th>ROI %</th><th>30d Trend</th><th>Recommendation</th></tr></thead>
-<tbody>
-  <tr><td style="font-weight:500">Referral</td><td>124</td><td>₹0</td><td>16.1%</td><td class="ku">18.4%</td><td>₹17.8L</td><td>₹0</td><td class="ku">∞</td><td class="ku">↑ stable</td><td>${badge('Increase','b-ok')}</td></tr>
-  <tr><td style="font-weight:500">Facebook Ads</td><td>684</td><td>₹820</td><td>9.5%</td><td class="ku">11.2%</td><td>₹49.7L</td><td>₹8,632</td><td class="ku">887%</td><td class="ku">↑ rising</td><td>${badge('Increase','b-ok')}</td></tr>
-  <tr><td style="font-weight:500">YouTube</td><td>412</td><td>₹640</td><td>7.8%</td><td>8.8%</td><td>₹25.0L</td><td>₹8,205</td><td>744%</td><td>→ flat</td><td>${badge('Maintain','b-p2')}</td></tr>
-  <tr><td style="font-weight:500">Google Ads</td><td>388</td><td>₹1,240</td><td>8.2%</td><td>9.7%</td><td>₹24.7L</td><td>₹15,122</td><td>413%</td><td>→ flat</td><td>${badge('Maintain','b-p2')}</td></tr>
-  <tr><td style="font-weight:500">Organic / SEO</td><td>741</td><td>₹210</td><td>5.8%</td><td>6.8%</td><td>₹33.4L</td><td>₹3,621</td><td>1,240%</td><td>→ flat</td><td>${badge('Maintain','b-p2')}</td></tr>
-  <tr style="background:#FEF2F2"><td style="font-weight:500">WhatsApp</td><td>492</td><td class="kd">₹1,820</td><td class="kd">2.4%</td><td class="kd">3.1%</td><td>₹9.2L</td><td class="kd">₹75,833</td><td class="kd">3%</td><td class="kd">↓ decaying</td><td>${badge('Cut','b-bad')}</td></tr>
-</tbody></table></div></div>
-<div class="card"><div class="card-hdr"><div class="card-title">CVR Trend — 90 Days</div><div class="card-sub">Declining >20% = AI Analyst trigger</div></div>
-<div class="cw" style="height:200px"><canvas id="sc"></canvas></div>
-<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11px;color:var(--muted)">
-  ${[['Facebook','#16A34A','↑ rising'],['Google','#2E5FA3','→ flat'],['YouTube','#7C3AED','→ flat'],['Organic','#D97706','→ flat'],['WhatsApp','#C0392B','↓ cut signal']].map(([n,c,t])=>`<span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:2px;background:${c};display:inline-block;border-radius:1px"></span>${n} <span style="${t.includes('↑')?'color:#16A34A':t.includes('↓')?'color:#C0392B':'color:var(--muted)'}">${t}</span></span>`).join('')}
-</div></div>`,
+  <div class="card-hdr"><div class="card-title">Source ROI Table</div></div>
+  <div class="tw"><table class="t" id="source-table">
+    <thead><tr><th>Source</th><th>Leads</th><th>CPL</th><th>CVR %</th><th>Real CVR %</th><th>Revenue</th><th>CAC</th><th>ROI %</th><th>Recommendation</th></tr></thead>
+    <tbody><tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table></div>
+</div>`
 
 'followup':`
-<div class="sl">Follow-up intelligence · v_followup_status · tolerance ±4h</div>
-<div class="kgrid">
-  ${kcard('Due Today','148','Scheduled follow-ups','nt','g','120,130,140,148,148,148,148')}
-  ${kcard('Overdue','211','Past date, no call','dn','r','180,188,195,200,205,210,211')}
-  ${kcard('Avg FU Gap','2.8d','Target: 0 days','dn','y','1.2,1.4,1.8,2.1,2.4,2.6,2.8')}
-  ${kcard('Chase Compliance','54%','Below 65% trigger','dn','r','71,68,65,62,59,56,54')}
-  ${kcard('Done Today','62','Of 148 due (42%)','dn','r','88,80,74,70,68,64,62')}
-  ${kcard('Hot Leads Missed','34','P0 — >24h no FU','dn','r','18,22,24,27,29,31,34')}
-</div>
+<div class="kgrid" id="fu-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
 <div class="card">
-<div class="card-hdr"><div class="card-title">Overdue Follow-Up Table</div><div class="card-actions">${btn('Export')}</div></div>
-<div class="tw"><table class="t">
-<thead><tr><th>Lead</th><th>BD</th><th>Last Call</th><th>FU Scheduled</th><th>Days Overdue</th><th>Temperature</th><th>Revenue at Risk</th><th>Action</th></tr></thead>
-<tbody>
-  <tr><td>Arjun S.</td><td>Rahul S.</td><td>Jun 4</td><td>Jun 5</td><td class="kd" style="font-weight:600">6d</td><td>${badge('Hot','b-p0')}</td><td style="font-weight:500">₹89,000</td><td><div class="td-action" style="opacity:1">${btn('Reassign','btn-primary')} ${btn('Call Now')}</div></td></tr>
-  <tr><td>Divya R.</td><td>Varun T.</td><td>Jun 6</td><td>Jun 7</td><td class="kd" style="font-weight:600">4d</td><td>${badge('Hot','b-p0')}</td><td style="font-weight:500">₹1,12,000</td><td><div class="td-action" style="opacity:1">${btn('Reassign','btn-primary')} ${btn('Call Now')}</div></td></tr>
-  <tr><td>Karan P.</td><td>Neha R.</td><td>Jun 8</td><td>Jun 9</td><td class="kw" style="font-weight:600">2d</td><td>${badge('Warm','b-p1')}</td><td>₹67,500</td><td><div class="td-action" style="opacity:1">${btn('Call Now','btn-primary')}</div></td></tr>
-  <tr><td>Meera K.</td><td>Kabir D.</td><td>Jun 9</td><td>Jun 10</td><td class="kw" style="font-weight:600">1d</td><td>${badge('Warm','b-p1')}</td><td>₹82,000</td><td><div class="td-action" style="opacity:1">${btn('Call Now','btn-primary')}</div></td></tr>
-</tbody></table></div></div>`,
+  <div class="card-hdr"><div class="card-title">Overdue Follow-Up Table</div></div>
+  <div class="tw"><table class="t" id="fu-table">
+    <thead><tr><th>Lead</th><th>BD</th><th>Scheduled</th><th>Days Overdue</th><th>Temperature</th><th>Revenue at Risk</th><th>Action</th></tr></thead>
+    <tbody><tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table></div>
+</div>`
 
 'prod':`
-<div class="sl">Productivity · working hours = MAX(activity)−MIN(activity) per BD per day</div>
-<div class="kgrid">
-  ${kcard('Working hrs avg','8.2h','Login to logout','nt','g','8.0,8.1,8.2,8.3,8.2,8.1,8.2')}
-  ${kcard('Productive hrs','3.6h','Calls >30s · target ≥40%','up','g','3.1,3.2,3.3,3.4,3.5,3.6,3.6')}
-  ${kcard('Productive %','43.9%','Target ≥40% ✓','up','g','39,40,41,42,43,43.5,43.9')}
-  ${kcard('Calls per hour','6.2','Target 4–8/hr ✓','up','g','5.4,5.6,5.8,5.9,6.0,6.1,6.2')}
-  ${kcard('Team coverage','89%','24/27 BDs active','nt','g','82,84,85,86,87,88,89')}
-</div>
-<div class="card">
-<div class="card-hdr"><div class="card-title">BD activity heatmap — hour of day</div><div class="card-sub">Connected calls per BD per hour · darker = more calls</div></div>
-<div class="heatmap-wrap"><div id="heatmap-container"></div></div>
-</div>`,
+<div class="card"><div class="card-hdr"><div class="card-title">Day-wise Calls by BD</div><div class="card-sub">Connected calls per BD per day</div></div>
+  <div id="prod-table-wrap" style="overflow-x:auto"><p style="color:var(--muted);padding:16px">Loading…</p></div>
+</div>`
 
 'leakage':`
-<div class="sl">Lead leakage · leads table + v_lead_lifecycle</div>
-<div class="kgrid">
-  ${kcard('Uncontacted >24h','347','₹22.4L at risk','dn','r','290,300,312,320,330,340,347')}
-  ${kcard('Single-touch lost','94','1 call, marked Lost','dn','r','70,75,79,83,87,91,94')}
-  ${kcard('Stale (15d+)','182','last_call_date < TODAY-15','dn','r','140,150,158,165,170,178,182')}
-  ${kcard('Ghosted leads','67','Callback gap >48h','dn','r','50,55,58,61,63,65,67')}
-  ${kcard('Expired hot leads','34','Hot temp, FU missed >24h','dn','r','18,22,25,28,30,32,34')}
-  ${kcard('Total Leakage est.','₹46.8L','Count × 11.2% × ₹77.9K','dn','r','32,36,39,41,44,46,46.8')}
-</div>
+<div class="kgrid" id="leak-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
 <div class="g2">
-  <div class="card"><div class="card-hdr"><div class="card-title">Revenue leakage calculator</div></div>
-    ${[['Uncontacted (347)','₹22.4L','kd'],['Single-touch (94)','₹6.1L','kd'],['Stale (182)','₹11.8L','kw'],['Ghosted (67)','₹4.3L','kw'],['Expired hot (34)','₹2.2L','kd']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
-    <div style="margin-top:10px;padding:8px 10px;background:#FEF2F2;border-radius:8px;display:flex;justify-content:space-between;align-items:center;border:0.5px solid #FECACA"><span style="font-size:12px;font-weight:600">Total estimate</span><span style="font-size:18px;font-weight:700;color:var(--accent)">₹46.8L</span></div>
-    <div style="font-size:10px;color:var(--muted);margin-top:5px;font-family:'JetBrains Mono',monospace">= Count × 11.2% Real CVR × ₹77.9K avg net ticket</div>
-  </div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Revenue Leakage Calculator</div></div><div id="leak-calc"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>
   <div class="card"><div class="card-hdr"><div class="card-title">Leakage by BD</div></div>
-    <table class="t"><thead><tr><th>BD</th><th>Uncontacted</th><th>Stale</th><th>Total</th><th>BD Score</th><th>Action</th></tr></thead>
-    <tbody>
-      <tr><td>Varun T.</td><td class="kd">61</td><td class="kd">28</td><td class="kd" style="font-weight:600">89</td><td class="kd">0.28</td><td>${badge('Reduce leads','b-bad')}</td></tr>
-      <tr><td>Rahul S.</td><td class="kd">54</td><td class="kd">20</td><td class="kd" style="font-weight:600">74</td><td class="kd">0.18</td><td>${badge('Freeze','b-bad')}</td></tr>
-      <tr><td>Neha R.</td><td class="kw">24</td><td class="kw">17</td><td class="kw" style="font-weight:600">41</td><td>0.61</td><td>${badge('Monitor','b-warn')}</td></tr>
-      <tr><td>Priya K.</td><td class="ku">2</td><td class="ku">1</td><td class="ku" style="font-weight:600">3</td><td class="ku">0.84</td><td>${badge('Add leads','b-ok')}</td></tr>
-    </tbody></table>
+    <table class="t" id="leak-bd-table"><thead><tr><th>BD</th><th>Uncontacted</th><th>Stale</th><th>Total</th><th>Action</th></tr></thead>
+    <tbody><tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody></table>
   </div>
-</div>`,
+</div>`
 
 'funnel':`
-<div class="sl">Conversion funnel · leads.status field + calls.duration_seconds threshold >30s</div>
-<div class="g3">
-  <div class="kcard" style="cursor:default"><div class="kcard-bar g"></div><div class="kcard-label">Overall CVR %</div><div class="kcard-val">8.3%</div><div class="kcard-bottom"><div class="kcard-delta nt">Sales / Assigned</div></div></div>
-  <div class="kcard" style="border:2px solid var(--gold);cursor:default"><div class="kcard-bar g"></div><div class="kcard-label" style="color:var(--gold)">Real CVR % ← Key metric</div><div class="kcard-val ku">11.2%</div><div class="kcard-bottom"><div class="kcard-delta up">Sales / Connected leads (>30s)</div></div></div>
-  <div class="kcard" style="cursor:default"><div class="kcard-bar g"></div><div class="kcard-label">Rolling CVR (30d)</div><div class="kcard-val">8.7%</div><div class="kcard-bottom"><div class="kcard-delta nt">Used in forecast engine</div></div></div>
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">7-stage conversion funnel</div><div class="card-sub">Stage CVR = conversions at stage / count at stage × 100</div></div>
-${[['Leads assigned','2,841','100%','#2E5FA3',100],['Contacted ≥1 call >30s','2,103','74.0%','#16A34A',74],['Interested / FU scheduled','1,079','51.3%','#7C3AED',51.3],['Demo / counseling done','688','63.8%','#D4A017',24],['Proposal sent','498','72.4%','#D97706',18],['Follow-up active','386','77.5%','#C0392B',14],['Converted (order confirmed)','236','61.1%','#C0392B',8.3]].map(([l,n,p,c,w])=>`
-<div class="funnel-step">
-  <div class="funnel-lbl">${l}</div>
-  <div class="funnel-bw"><div class="funnel-bf" style="width:${w}%;background:${c}"><span>${n}</span></div></div>
-  <div class="funnel-pct">${p}</div>
-</div>`).join('')}
-</div>`,
+<div class="g3" id="funnel-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">Conversion Funnel</div></div><div id="funnel-stages"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>`
 
 'cohort':`
-<div class="sl">Cohort analysis · leads.assigned_date grouped by week · color intensity = CVR %</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Cohort CVR progression</div><div class="card-sub">Primary conversion window: Week 2–3 · Early CVR (Wk1) typically &lt;3.5%</div></div>
-<div class="cohort-wrap"><table class="cohort-grid">
-<thead><tr><th>Cohort</th><th>Assigned</th><th>Contacted %</th><th>CVR Wk1</th><th>CVR Wk2</th><th>CVR Wk3</th><th>CVR Wk4</th><th>Final CVR</th><th>Status</th></tr></thead>
-<tbody id="cohort-body"></tbody>
-</table></div>
-<div style="display:flex;align-items:center;gap:10px;margin-top:10px;font-size:11px;color:var(--muted)">
-  Color intensity: <span style="display:inline-flex;gap:3px">${[2,4,6,8,10,12].map(v=>`<span style="width:24px;height:14px;background:${cvColor(v)};border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:8px;color:${v>6?'#fff':'#333'}">${v}%</span>`).join('')}</span>
-</div>
-</div>`,
+<div class="card"><div class="card-hdr"><div class="card-title">Cohort Analysis</div><div class="card-sub">Coming soon — requires historical lead assignment data per week</div></div>
+  <div style="padding:24px;text-align:center;color:var(--muted)"><i class="ti ti-grid-dots" style="font-size:32px;margin-bottom:8px;display:block"></i>Cohort CVR analysis will appear here once enough weekly data accumulates.</div>
+</div>`
 
 'forecast':`
-<div class="sl">Forecast · v_forecast_inputs · 4-component weighted model</div>
-<div class="kgrid">
-  ${kcard('Forecast (EOM)','₹2.61Cr','High confidence 81%','up','g','2.1,2.2,2.35,2.45,2.52,2.58,2.61')}
-  ${kcard('Run rate (30%)','₹1.15Cr','₹9.6L/day × 12 days','up','g','8.8,9.0,9.2,9.4,9.5,9.6,9.6')}
-  ${kcard('Pipeline (40%)','₹1.92Cr','Open leads × CVR × ticket','up','g','1.6,1.7,1.75,1.8,1.85,1.9,1.92')}
-  ${kcard('Days remaining','12','Jun 11 → Jun 30','nt','g','30,27,24,21,18,15,12')}
-  ${kcard('Required daily','₹15.8L','To hit ₹2.80Cr target','dn','y','19,18.5,18,17.5,17,16.5,15.8')}
-  ${kcard('Gap to target','₹19L','Closable with reallocation','dn','y','45,40,35,30,27,23,19')}
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Forecast formula — no black box</div></div>
-<div class="fbox">Forecast = (Run Rate × 0.30) + (Pipeline × 0.40) + (Collections × 0.20) + (Adjustment × 0.10)
-= (₹9.6L/d × 12d × 0.30) + (2,841 leads × 8.7% CVR × ₹77.9K × 0.40) + (EMI due × 0.20) + (0% adj)
-= ₹34.5L + ₹76.8L + ₹7.0L + ₹0 = ₹2.61Cr
-
-Adjustment triggers:
-  CVR trending up   → +5%  → ₹2.74Cr
-  CVR trending down → −5%  → ₹2.48Cr [Forecast Risk alert triggered]
-  Manipulation det. → −10% → ₹2.35Cr [P0 alert]
-  Forecast >25% below target → Forecast Risk insight card generated</div>
-${[['Collected MTD','₹1.84Cr',''],['Run rate component (30%)','₹34.5L','ku'],['Pipeline component (40%)','₹76.8L','ku'],['Collections component (20%)','₹7.0L',''],['Confidence band','₹2.44–₹2.79Cr',''],['Gap to ₹2.80Cr target','₹19L','kd']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
-</div>`,
+<div class="kgrid" id="fc-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">Forecast Formula</div></div><div id="fc-detail"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>`
 
 'ai':`
-<div class="sl">AI Analyst Agent · 6-step pipeline · 9 AM auto + on-demand refresh</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Daily execution flow</div><div class="card-actions">${btn('↻ Refresh Analysis')}</div></div>
-${[['Pull last 24h data','calls + CRM + sales + collections → raw snapshot'],['Compare to 7d and 30d averages','Variance table across all 60+ KPIs'],['Identify metrics outside ±15%','Anomaly list — only statistically significant deviations'],['Rank by revenue impact','(expected − actual) × avg ticket × leads affected'],['Generate insight cards (max 10/day)','Title · Evidence · Root cause · Revenue impact · Action · Priority'],['Push to dashboards','Daily Review Center + AI Insights — visible by 9 AM']].map(([a,o],i)=>`<div class="flow-step"><div class="flow-num">${i+1}</div><div><div class="flow-act">${a}</div><div class="flow-out">${o}</div></div></div>`).join('')}
-</div>
-<div class="sl">Today's insight cards — full format · 38 generated · showing top 4</div>
-${[['P0','b-p0','BD performance','b-manip','Rahul S. — manipulation score 88, auto-escalation triggered',
-  'Real CVR 4.1% on 44 real calls. 344 zero-second calls excluded. Manip. score 88/100 (threshold: 80).',
-  'Auto-dialer abuse to inflate call count for incentive threshold. CVR with <2 min avg talktime = fake conversion signal.',
-  '₹6.9L direct + ₹8.4L pipeline','Freeze Rahul S. allocation now. Reassign 54 leads to Priya K. + Sneha G. Audit 3 recordings by 12 PM.','Meena V.','EOD today'],
- ['P0','b-p0','Lead intelligence','b-p2','738 uncontacted leads — 26%, above 25% alert threshold',
-  '738/2,841 = 26% uncontacted (trigger >25%). Has been rising 3 consecutive days per v_lead_lifecycle.',
-  'Lead allocation concentrated in low BD-score BDs (0.18, 0.28) who are not contacting assigned leads.',
-  '₹64.4L pipeline at risk','Reallocate 163 leads: 80→Priya K., 54→Sneha G., 29→Ajay M. Run allocation engine now.','Rev Ops','EOD today'],
- ['P1','b-p1','Source quality','b-warn','WhatsApp CPL spike 122% — ROI 3%, cut recommended',
-  'campaigns.spend / leads_generated = ₹1,820 (was ₹820 last month). +122% spike vs 30% trigger.',
-  'Audience fatigue + list quality decay. Connection rate dropped from 48% to 36% over 6 weeks.',
-  '₹12L/month wasted budget','Cut ₹80K/wk WhatsApp → Facebook for remaining 12 days. Expected +₹4.8L uplift.','Marketing','By Jun 12'],
- ['P1','b-p1','Follow-up risk','b-warn','Chase compliance 54% — below 65% trigger, 34 hot leads at risk',
-  'followups Done/Scheduled = 54% (trigger <65%). AVG(gap_hours) = 67.2h (trigger >48h). 34 Hot leads missed.',
-  '2 BDs own 60% of missed FUs. Manipulation scores suggest intentional avoidance.',
-  '₹48.7L pipeline (34 hot × 18.4% CVR × ₹77.9K)','TLs call BDs with >5 missed FUs now. Reassign Arjun S. + Divya R. immediately.','All TLs','Within 2h']
-].map(([pr,prCls,cat,catCls,title,ev,rc,imp,action,owner,dl])=>`
-<div class="card" style="margin-bottom:10px">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-    <div style="font-size:14px;font-weight:600;color:var(--text);flex:1">${title}</div>
-    <div style="display:flex;gap:5px">${badge(pr,prCls)} ${badge(cat,catCls)}</div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
-    <div><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">Data evidence</div><div style="font-size:12px;color:var(--text);line-height:1.5">${ev}</div></div>
-    <div><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">Root cause</div><div style="font-size:12px;color:var(--text);line-height:1.5">${rc}</div></div>
-    <div><div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">Revenue impact</div><div style="font-size:13px;font-weight:600;color:var(--text)">${imp}</div></div>
-    <div style="grid-column:1/-1;background:var(--bg);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text);line-height:1.5;border:0.5px solid var(--border)"><strong>Action (${dl}):</strong> ${action} — <em>Owner: ${owner}</em></div>
-  </div>
-  <div style="display:flex;gap:6px">${btn('Mark as Addressed')} ${btn('Drill in ↗')}</div>
-</div>`).join('')}`,
+<div class="card"><div class="card-hdr"><div class="card-title">AI Analyst Insights</div><div class="card-sub">Powered by Claude — configure your Claude API key in Settings to enable</div></div>
+  <div style="padding:24px;text-align:center;color:var(--muted)"><i class="ti ti-brain" style="font-size:32px;margin-bottom:8px;display:block;color:var(--gold)"></i>
+  AI-generated insights will appear here once your Claude API key is saved and enabled in Settings → API Keys.<br><br>
+  The AI Analyst runs at 9 AM daily, analysing all BD, lead, revenue and call data to surface P0/P1/P2 actions.</div>
+</div>`
 
 'coaching':`
-<div class="sl">AI Coaching Engine · weekly Monday 9 AM + on CVR drop >20% · 8-field card format</div>
-<div class="card" style="margin-bottom:10px"><div class="card-hdr"><div class="card-title">Data inputs per BD (Doc 4, §2.1)</div></div>
-<div style="display:flex;flex-wrap:wrap;gap:6px">${['Last 30 call transcripts (calls.recording_url)','Call duration per funnel stage','Objection frequency (NLP analysis)','CRM notes quality (leads.last_crm_update)','Real CVR trend 4 weeks','Comparison to top quartile BDs'].map(i=>`<span class="badge b-p2">${i}</span>`).join('')}</div>
-</div>
-${[['PK','#DCFCE7','#166534','Priya K.','14.1%','92h MTD','88%','10.5%','Top performer','b-ok',
-  'Closing — rarely attempts explicit commitment before call ends',
-  '8/10 converts: student closed proactively. Closing score 5.8/10. Avg close attempts 1.1/call vs top BD 3.2.',
-  'Ajay M. uses 3-step close: urgency anchor → seat scarcity → payment flexibility. CVR on calls with 3+ attempts: 22.4%.',
-  '"We have 3 seats left in June batch. Shall I block one for you right now? If fees are a concern, I can check the 3-month EMI option."',
-  'Attempt a named close on every call after fee discussion.',
-  'Close attempt rate ≥2/call in 5 calls reviewed by TL on Jun 18.',71,'#16A34A'],
- ['RS','#FEE2E2','#991B1B','Rahul S.','4.1%*','8h* MTD','38%','10.5%','PIP required','b-bad',
-  'No real calls — 344 zero-sec calls is disciplinary, not a coaching issue',
-  'Call quality 2.1/10. calls.duration_seconds median = 3s. 88% of entries excluded by engine.',
-  'All top BDs: 7–9 min calls with structured discovery + pitch + close phases.',
-  'N/A — disciplinary intervention required. PIP documentation needed.',
-  'Attend PIP meeting with Meena V. + Manager today.',
-  'Outcome depends on PIP review Jun 14.',12,'#C0392B']
-].map(([init,bg,fg,name,cvr,tt,chase,avgCvr,badge_text,badgeCls,gap,ev,bench,script,focus,measure,prog,progClr])=>`
-<div class="cc">
-<div class="cc-hdr">
-  <div class="av" style="background:${bg};color:${fg}">${init}</div>
-  <div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--text)">${name}</div>
-  <div style="font-size:11px;color:var(--muted)">CVR: ${cvr} · Talktime: ${tt} · Chase: ${chase} · Team avg CVR: ${avgCvr}</div></div>
-  ${badge(badge_text,badgeCls)}
-</div>
-<div class="cc-grid">
-  <div><div class="cc-lbl">Top skill gap</div><div class="cc-val">${gap}</div></div>
-  <div><div class="cc-lbl">Evidence (from calls)</div><div class="cc-val">${ev}</div></div>
-  <div><div class="cc-lbl">Benchmark (top BD)</div><div class="cc-val">${bench}</div></div>
-  <div><div class="cc-lbl">This week's focus</div><div class="cc-val">${focus}</div></div>
-  <div style="grid-column:1/-1"><div class="cc-lbl">Recommended script</div><div class="cc-script">${script}</div></div>
-  <div style="grid-column:1/-1"><div class="cc-lbl">Progress check (next week)</div><div class="cc-val">${measure}</div>
-    <div class="prog-row"><span style="font-size:11px;color:var(--muted);min-width:110px">Coaching progress</span>
-    <div class="prog-bar"><div class="prog-fill" style="width:${prog}%;background:${progClr}"></div></div>
-    <span style="font-size:11px;font-weight:600;color:var(--muted)">${prog}%</span></div>
-  </div>
-</div>
-</div>`).join('')}`,
+<div class="card"><div class="card-hdr"><div class="card-title">AI Coaching Engine</div><div class="card-sub">Powered by Claude — configure your Claude API key in Settings to enable</div></div>
+  <div style="padding:24px;text-align:center;color:var(--muted)"><i class="ti ti-target" style="font-size:32px;margin-bottom:8px;display:block;color:var(--purple)"></i>
+  Personalised BD coaching cards will appear here once your Claude API key is saved and enabled in Settings → API Keys.<br><br>
+  Each BD receives weekly coaching based on their call recordings, CVR trend, objection frequency and comparison to top-quartile BDs.</div>
+</div>`
 
 'cop':`
-<div class="sl">Executive Copilot · Doc 4, §3 · 5 query categories · direct-answer format</div>
-<div class="g2" style="margin-bottom:10px">
-  <div class="card"><div class="card-hdr"><div class="card-title">5 query categories</div></div>
-    ${[['Performance','Top BDs, TL rankings, BD improvement rank'],['Diagnostic','Why CVR dropped, source underperformance, root cause'],['Forecast','Month-end projection, CVR sensitivity analysis'],['Action','Which leads to reassign, who needs urgent coaching'],['Comparison','This week vs last week, BD improvement this month']].map(([c,e])=>`<div class="mrow"><span style="font-size:12px;font-weight:500;color:var(--text)">${c}</span><span style="font-size:11px;color:var(--muted)">${e}</span></div>`).join('')}
-  </div>
-  <div class="card"><div class="card-hdr"><div class="card-title">Response format rules (Doc 4, §3.2)</div></div>
-    ${['Lead with direct answer — no "Based on the data…" preamble','Show supporting numbers inline with every response','Offer to drill deeper or take action at response end','Flag data quality issues if relevant (missing BD logs, sync gaps)'].map((r,i)=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);align-items:flex-start"><div style="width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${i+1}</div><div style="font-size:12px;color:var(--text)">${r}</div></div>`).join('')}
-  </div>
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Full-page copilot interface</div><div class="card-sub">All 5 query categories · Docs 1–6 as context · &lt;3s response</div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">Executive Copilot</div><div class="card-sub">Ask anything about your BD, leads, revenue, or forecast · ⌘K from any page</div></div>
 <div style="border:0.5px solid var(--border);border-radius:10px;overflow:hidden">
   <div style="padding:12px 14px;background:var(--primary);display:flex;align-items:center;justify-content:space-between">
     <div style="font-size:13px;font-weight:600;color:#fff;display:flex;align-items:center;gap:7px"><i class="ti ti-robot"></i> Executive Copilot</div>
     <span style="font-size:10px;color:rgba(255,255,255,.6)">⌘K from any page</span>
   </div>
   <div id="cop-msgs-full" style="padding:14px;min-height:120px;max-height:240px;overflow-y:auto">
-    <div class="cmsg cmsg-u"><span style="color:var(--muted)">You —</span> Why did our CVR drop this week?</div>
-    <div class="cmsg cmsg-a"><strong>RISCC —</strong> Real CVR dropped from 11.8% to 9.4% — a 20.3% decline. Three causes: (1) Rahul S. + Varun T. contributed only 2 sales this week vs 5 last. (2) WhatsApp leads (3.1% CVR) grew from 14% to 22% of this week's assignment. (3) FU compliance fell to 54%, sending 34 hot leads cold. Removing those two BDs, team CVR is 11.1% — essentially flat. Want a source-level breakdown?</div>
+    <div class="cmsg cmsg-a"><strong>RISCC —</strong> Hi! Ask me anything about your team's performance, leads, revenue or forecast. I'll answer using your live data.</div>
   </div>
   <div style="display:flex;gap:8px;padding:10px;border-top:0.5px solid var(--border)">
-    <input type="text" id="cop-in-full" placeholder="Ask anything — 'Who are top 5 BDs?', 'Forecast at 10% CVR?', 'Which leads to reassign?'…" style="flex:1;font-size:12px;padding:8px 12px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg);color:var(--text)"/>
+    <input type="text" id="cop-in-full" placeholder="Who are top 5 BDs? Will we hit target? Which leads to reassign?…" style="flex:1;font-size:12px;padding:8px 12px;border-radius:8px;border:0.5px solid var(--border);background:var(--bg);color:var(--text)"/>
     <button onclick="sendCopFull()" style="font-size:12px;padding:8px 16px;border-radius:8px;border:none;background:var(--primary);color:#fff;cursor:pointer">Ask ↗</button>
   </div>
 </div>
 <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
-  ${['Who are top 5 BDs?','Will we hit target?','Which BD improved most?','Which leads to reassign?','Which source to cut?','Who needs urgent coaching?','What is CVR by team?'].map(q=>`<button onclick="document.getElementById('cop-in-full').value='${q}'" style="font-size:11px;padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer">${q}</button>`).join('')}
+  ${['Who are top 5 BDs?','Will we hit target?','Which BD improved most?','Which leads to reassign?','What is CVR by team?'].map(q=>`<button onclick="document.getElementById('cop-in-full').value='${q}'" style="font-size:11px;padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer">${q}</button>`).join('')}
 </div>
-</div>`,
+</div>`
 
 'alloc':`
-<div class="sl">Lead Allocation Engine · BD_Score formula · runs daily · surfaces to Daily Review</div>
-<div class="fbox">BD_Score = (Real_CVR × 0.4) + (Chase_Compliance × 0.25) + (Lead_Penetration × 0.2) + (1 − Manipulation_Score/100 × 0.15)
-Source: v_bd_daily_summary · v_manipulation_scores · leads · followups</div>
-<div class="card">
-<div class="card-hdr"><div class="card-title">BD Allocation Scores — Today</div><div class="card-actions">${btn('Run Allocation Engine','btn-primary')} ${btn('Export')}</div></div>
-<div class="tw"><table class="t">
-<thead><tr><th>BD</th><th>Real CVR</th><th>Chase %</th><th>Penetration</th><th>Manip. factor</th><th>BD Score</th><th>Score bar</th><th>Current leads</th><th>Recommended</th><th>Δ</th></tr></thead>
-<tbody>
-${[['Priya K.','14.1%','88%','93%','0.94','0.84',84,'#16A34A',280,340,'+60','ku'],
-   ['Ajay M.','12.0%','83%','92%','0.91','0.78',78,'#16A34A',260,300,'+40','ku'],
-   ['Sneha G.','9.2%','70%','89%','0.86','0.67',67,'#7C3AED',245,260,'+15',''],
-   ['Neha R.','7.8%','65%','82%','0.78','0.61',61,'#7C3AED',230,230,'0',''],
-   ['Kabir D.','7.2%','57%','79%','0.72','0.55',55,'#D97706',220,200,'−20','kw'],
-   ['Varun T.','3.2%','41%','59%','0.29','0.28',28,'#C0392B',218,100,'−118','kd'],
-   ['Rahul S.*','4.1%*','38%','53%','0.12','0.18',18,'#C0392B',210,0,'−210 freeze','kd']
-].map(([n,cvr,ch,pen,mf,score,pct,clr,cur,rec,d,dc])=>`<tr>
-  <td style="font-weight:500">${n}</td><td>${cvr}</td><td>${ch}</td><td>${pen}</td><td>${mf}</td>
-  <td class="${dc}" style="font-weight:700">${score}</td>
-  <td>${sbar(pct,clr)}</td>
-  <td>${cur}</td><td class="${dc}" style="font-weight:600">${rec}</td><td class="${dc}">${d}</td>
-</tr>`).join('')}
-</tbody></table></div></div>
-<div class="card"><div class="card-hdr"><div class="card-title">Reallocation triggers — today's status</div></div>
-${[['Triggered','Uncontacted rate >35%','Rahul S. (47%) + Varun T. (41%) both triggered. Freeze Rahul S., reduce Varun T. by 118 leads.','b-p0'],
-   ['Triggered','0 sales in 7d + connected <40%','Varun T. — 0 sales, 38% connection rate. Reallocate 118 leads: 80→Priya K., 38→Ajay M.','b-p0'],
-   ['Triggered','TL with >3 BDs uncontacted >30%','Meena V.: 3 BDs (47%, 41%, 32%) all above 30%. TL coaching alert generated.','b-p1'],
-   ['Watch','Source leads uncontacted >48h','Facebook Jun 9 batch: 84 leads uncontacted 48h+. Recommend →Priya K. (60) + Ajay M. (24).','b-warn']
-].map(([status,thr,action,sc])=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)"><div style="min-width:100px">${badge(status,sc)}</div><div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">${thr}</div><div style="font-size:12px;color:var(--muted)">${action}</div></div></div>`).join('')}
-</div>`,
+<div class="sl">Lead Allocation Engine · BD_Score formula</div>
+<div class="card"><div class="card-hdr"><div class="card-title">BD Allocation Scores — Live</div><div class="card-actions">${btn('Export')}</div></div>
+  <div class="tw"><table class="t" id="alloc-table">
+    <thead><tr><th>BD</th><th>TL</th><th>Real CVR</th><th>Chase %</th><th>Penetration</th><th>Manip. score</th><th>BD Score</th><th>Status</th></tr></thead>
+    <tbody><tr><td colspan="8" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table></div>
+</div>`
 
 'call':`
-<div class="sl">Call quality · calls.recording_url analysed by AI · 6-dimension scoring rubric</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Scoring rubric — per recording</div></div>
-<table class="t"><thead><tr><th>Dimension</th><th>Weight</th><th>Description</th><th>Low signal</th></tr></thead>
-<tbody>
-  <tr><td style="font-weight:500">Opening score</td><td>10%</td><td>Name, purpose, empathy opener</td><td>Jumps to pitch without context</td></tr>
-  <tr><td style="font-weight:500">Needs discovery</td><td>20%</td><td>Prep stage, attempt number, target asked</td><td>Monologue — no questions to lead</td></tr>
-  <tr><td style="font-weight:500">Program pitch</td><td>20%</td><td>Right program recommended, clearly explained</td><td>Generic pitch, wrong course</td></tr>
-  <tr><td style="font-weight:500">Objection handling</td><td class="ku">25%</td><td>Fee, time, credibility objections addressed</td><td>Loses call at fee mention — highest weight</td></tr>
-  <tr><td style="font-weight:500">Closing score</td><td>15%</td><td>Explicit close attempt, urgency created</td><td>Conversation trails off, no close</td></tr>
-  <tr><td style="font-weight:500">CRM accuracy</td><td>10%</td><td>CRM update matches actual call outcome</td><td>Pipeline accuracy &lt;70%</td></tr>
-</tbody></table></div>
+<div class="card"><div class="card-hdr"><div class="card-title">Call Quality</div><div class="card-sub">Powered by AI call analysis — connect recording URLs to enable scoring</div></div>
+  <div style="padding:24px;text-align:center;color:var(--muted)"><i class="ti ti-headphones" style="font-size:32px;margin-bottom:8px;display:block;color:var(--mid)"></i>
+  Call quality scoring will be available once call recording URLs are populated in the calls table.<br><br>
+  Current data shows call outcomes (Phone Busy, Did not pick, etc.) from your OCRM sync. AI scoring requires audio recordings.</div>
+</div>
 <div class="g2">
-  <div class="card"><div class="card-hdr"><div class="card-title">BD call scores MTD</div></div>
-    <table class="t"><thead><tr><th>BD</th><th>Score</th><th>Trend</th><th>Weakest dim.</th></tr></thead>
-    <tbody>
-      <tr><td>Priya K.</td><td class="ku" style="font-weight:700">7.8/10</td><td class="ku">↑ +0.4</td><td>Closing (6.2)</td></tr>
-      <tr><td>Ajay M.</td><td class="ku" style="font-weight:700">7.2/10</td><td>→ flat</td><td>Needs discovery</td></tr>
-      <tr><td>Sneha G.</td><td style="font-weight:700">6.4/10</td><td class="kw">↓ −0.3</td><td>Objection handling</td></tr>
-      <tr><td>Varun T.</td><td class="kw" style="font-weight:700">4.1/10</td><td class="kd">↓ −1.2</td><td>Program pitch</td></tr>
-      <tr><td>Rahul S.</td><td class="kd" style="font-weight:700">2.1/10</td><td class="kd">↓ −3.1</td><td>All dims (hang-up)</td></tr>
-    </tbody></table>
+  <div class="card"><div class="card-hdr"><div class="card-title">BD Call Stats MTD</div></div>
+    <table class="t" id="call-stats-table"><thead><tr><th>BD</th><th>Total Calls</th><th>Connected</th><th>Avg Duration (min)</th><th>Zero-sec calls</th></tr></thead>
+    <tbody><tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody></table>
   </div>
-  <div class="card"><div class="card-hdr"><div class="card-title">Sentiment analysis · last 48h</div></div>
-    ${[['Lead sentiment positive','42%','ku'],['Lead sentiment neutral','38%',''],['Lead sentiment negative','20%','kd'],['Avg BD tone score','6.8/10',''],['Avg energy level','5.4/10','kw'],['Avg pace (wpm)','148 wpm',''],['Recordings scored today','84','ku']].map(([l,v,c])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv ${c}">${v}</span></div>`).join('')}
+  <div class="card"><div class="card-hdr"><div class="card-title">Call Outcomes</div></div>
+    <div id="call-outcomes"><p style="color:var(--muted);padding:8px">Loading…</p></div>
   </div>
-</div>`,
+</div>`
 
 'daily':`
-<div class="sl">Auto-generated 9:00 AM · Jun 11, 2026 · AI Analyst Agent — all 6 materialized views queried</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Section 1 — Yesterday (Jun 10)</div></div>
-<table class="t"><thead><tr><th>Metric</th><th>Yesterday</th><th>MTD</th><th>vs Target</th></tr></thead>
-<tbody>
-  <tr><td>Leads assigned</td><td>142</td><td>2,841</td><td class="ku">+8% vs plan</td></tr>
-  <tr><td>Leads contacted</td><td>108</td><td>2,103</td><td class="kw">−3% vs plan</td></tr>
-  <tr><td>Sales</td><td>18</td><td>236</td><td>On track</td></tr>
-  <tr><td>Revenue (net)</td><td>₹14.0L</td><td>₹1.84Cr</td><td class="kw">₹1.3L below daily required</td></tr>
-  <tr><td>Collections</td><td>₹8.2L</td><td>₹1.84Cr</td><td class="ku">On track</td></tr>
-  <tr><td>Follow-ups done</td><td>62/148</td><td>54%</td><td class="kd">Below 60% threshold</td></tr>
-</tbody></table></div>
-<div class="g2">
-  <div class="card"><div class="card-hdr"><div class="card-title">Section 2 — Stars</div></div>
-    ${[['Top BD — revenue','Priya K. · ₹3.1L'],['Top BD — real CVR','Priya K. · 16.2%'],['Top TL — team CVR','Anand R. · 10.8%'],['Top source — ROI','Facebook · 923%'],['Best new cohort','Jun10 Facebook · 12.1%']].map(([l,v])=>`<div class="mrow"><span class="ml">${l}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${v}</span></div>`).join('')}
-  </div>
-  <div class="card"><div class="card-hdr"><div class="card-title">Section 3 — Red flags</div></div>
-    ${[['149 FU missed — Rahul S. (48) + Varun T. (41) = 60%','var(--accent)'],['3 manip. flags: Rahul S. 88 (P0), Varun T. 71 (P1), Dev P. 34','var(--accent)'],['Collection rate 84% — 6pt below 90% target','var(--warning)'],['22 leads crossed 15-day stale threshold today','var(--warning)']].map(([t,c])=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border)"><i class="ti ti-alert-triangle" style="font-size:13px;color:${c};flex-shrink:0;margin-top:1px"></i><div style="font-size:12px;color:var(--text);line-height:1.5">${t}</div></div>`).join('')}
-  </div>
+<div class="sl" id="daily-date-label">Daily Review — Loading…</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Section 1 — Yesterday's Numbers</div></div>
+  <table class="t" id="daily-table"><thead><tr><th>Metric</th><th>Value</th><th>Status</th></tr></thead>
+    <tbody><tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table>
 </div>
-<div class="card"><div class="card-hdr"><div class="card-title">Section 4 — Today's action items</div><div class="card-actions">${btn('Export to PDF')}</div></div>
-<table class="t"><thead><tr><th>Action</th><th>Detail</th><th>Owner</th><th>Priority</th><th>Status</th></tr></thead>
-<tbody>
-  <tr><td style="font-weight:500">Freeze Rahul S.</td><td>Score 88 — auto-escalated. Reallocate 54 leads. PIP doc today.</td><td>Meena V.</td><td>${badge('P0','b-p0')}</td><td>${badge('Pending','b-warn')}</td></tr>
-  <tr><td style="font-weight:500">Escalate 34 hot FU misses</td><td>Hot leads >24h overdue. Reassign Arjun S. + Divya R. immediately.</td><td>All TLs</td><td>${badge('P0','b-p0')}</td><td>${badge('Pending','b-warn')}</td></tr>
-  <tr><td style="font-weight:500">Reallocate Varun T. leads</td><td>Score 0.28 · 0 sales 7d. Move 118 leads: 80→Priya K., 38→Ajay M.</td><td>Rev Ops</td><td>${badge('P1','b-p1')}</td><td>${badge('In progress','b-p2')}</td></tr>
-  <tr><td style="font-weight:500">Budget reallocation</td><td>Cut WhatsApp ₹80K/wk → Facebook. Expected +₹4.8L.</td><td>Marketing</td><td>${badge('P1','b-p1')}</td><td>${badge('Pending','b-warn')}</td></tr>
-  <tr><td style="font-weight:500">Collection chase</td><td>Arjun Singh ₹60K (10d) · Rahul Verma ₹90K (32d — default risk).</td><td>Finance</td><td>${badge('P1','b-p1')}</td><td>${badge('Pending','b-warn')}</td></tr>
-</tbody></table></div>`,
+<div class="g2">
+  <div class="card"><div class="card-hdr"><div class="card-title">Top Performers</div></div><div id="daily-stars"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>
+  <div class="card"><div class="card-hdr"><div class="card-title">Red Flags</div></div><div id="daily-flags"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>
+</div>`
 
 'tl':`
 <div class="sl">Team leader dashboard</div>
@@ -908,312 +625,54 @@ ${[['Triggered','Uncontacted rate >35%','Rahul S. (47%) + Varun T. (41%) both tr
   <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px">Loading…</td></tr>
 </tbody></table></div>`,
 
-'rev':`<div class="sl">Revenue intelligence · sales table</div>
-<div class="kgrid">
-  ${kcard('Gross Revenue','₹2.09Cr','All confirmed orders','nt','g','1.7,1.8,1.85,1.9,1.95,2.02,2.09')}
-  ${kcard('Net Collected','₹1.84Cr','Gross − waivers − refunds','nt','y','1.5,1.58,1.64,1.70,1.76,1.81,1.84')}
-  ${kcard('Waivers','₹11.1L','18 MTD · Alert >5% of gross','dn','y','6,7,8,9,10,10.5,11.1')}
-  ${kcard('Refunds','₹14.2L','18 reversed orders','dn','r','8,9,10,11,12,13.5,14.2')}
-  ${kcard('Revenue Gap %','12.0%','Alert threshold >15%','dn','y','9,9.5,10,10.5,11,11.5,12')}
-  ${kcard('Avg Ticket (net)','₹77.9K','Net / sales count','up','g','72,73,74,75,76,77,77.9')}
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Revenue attribution — BD / TL / Source</div></div>
-<div class="tw"><table class="t"><thead><tr><th>Entity</th><th>Type</th><th>Revenue</th><th>% of net</th><th>Rev/lead</th><th>Rev/connected lead</th><th>Rev/talktime hr</th></tr></thead>
-<tbody>
-  <tr><td style="font-weight:500">Anand R.</td><td>TL</td><td>₹72.1L</td><td>39.2%</td><td>₹5,554</td><td>₹6,690</td><td>₹11,240</td></tr>
-  <tr><td style="font-weight:500">Priya K.</td><td>BD</td><td>₹30.4L</td><td class="ku">16.5%</td><td>₹10,857</td><td>₹11,014</td><td>₹33,043</td></tr>
-  <tr><td style="font-weight:500">Facebook Ads</td><td>Source</td><td>₹49.7L</td><td>27.0%</td><td>₹7,266</td><td>₹8,270</td><td>—</td></tr>
-  <tr><td style="font-weight:500">Organic SEO</td><td>Source</td><td>₹33.4L</td><td>18.2%</td><td>₹4,507</td><td>₹6,523</td><td>—</td></tr>
-</tbody></table></div></div>`,
+'rev':`
+<div class="kgrid" id="rev-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">Revenue Attribution — BD / TL / Source</div></div>
+  <div class="tw"><table class="t" id="rev-table">
+    <thead><tr><th>Entity</th><th>Type</th><th>Revenue</th><th>% of Net</th><th>Rev/Lead</th></tr></thead>
+    <tbody><tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table></div>
+</div>`
 
-'col':`<div class="sl">Collections · collections table</div>
-<div class="kgrid">
-  ${kcard('Total Fees Due','₹2.19Cr','All enrolled','nt','g','1.8,1.9,2.0,2.05,2.1,2.15,2.19')}
-  ${kcard('Total Collected','₹1.84Cr','84% collection rate','nt','y','1.5,1.58,1.64,1.70,1.76,1.81,1.84')}
-  ${kcard('Collection Rate','84%','Target ≥90%','dn','y','88,87,87,86,86,85,84')}
-  ${kcard('Overdue >7 days','₹18.4L','38 students','dn','r','10,12,13,14,15,17,18.4')}
-  ${kcard('Overdue >30 days','₹6.2L','11 at-risk churn','dn','r','2,3,4,4.5,5,5.8,6.2')}
-  ${kcard('EMI Default Rate','8.3%','7 of 84 plans','dn','y','4,5,5.5,6,6.5,7.5,8.3')}
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Student collection table — overdue cases</div></div>
-<div class="tw"><table class="t"><thead><tr><th>Student</th><th>BD</th><th>Fee due</th><th>Collected</th><th>Balance</th><th>Days overdue</th><th>Status</th></tr></thead>
-<tbody>
-  <tr><td>Arjun Singh</td><td>Priya K.</td><td>₹1,20,000</td><td>₹60,000</td><td>₹60,000</td><td class="kd">10d</td><td>${badge('Overdue','b-bad')}</td></tr>
-  <tr><td>Sneha Patel</td><td>Ajay M.</td><td>₹75,000</td><td>₹37,500</td><td>₹37,500</td><td class="kd">6d</td><td>${badge('Overdue','b-bad')}</td></tr>
-  <tr><td>Rahul Verma</td><td>Sneha G.</td><td>₹1,80,000</td><td>₹90,000</td><td>₹90,000</td><td class="kd">32d</td><td>${badge('Defaulted','b-bad')}</td></tr>
-  <tr><td>Divya Kumar</td><td>Neha R.</td><td>₹45,000</td><td>₹45,000</td><td>₹0</td><td>—</td><td>${badge('On track','b-ok')}</td></tr>
-</tbody></table></div></div>`,
+'col':`
+<div class="kgrid" id="col-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">Overdue Collections</div></div>
+  <div class="tw"><table class="t" id="col-table">
+    <thead><tr><th>Order</th><th>BD</th><th>Amount Due</th><th>Collected</th><th>Balance</th><th>Days Overdue</th><th>Status</th></tr></thead>
+    <tbody><tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table></div>
+</div>`
 
-'crm':`<div class="sl">CRM discipline · calls.crm_logged + calls.crm_log_time</div>
-<div class="kgrid">
-  ${kcard('Update Compliance','61%','Target ≥80%','dn','y','72,70,68,67,65,63,61')}
-  ${kcard('Avg Update Lag','3.4h','Target <2h','dn','y','1.8,2.1,2.4,2.7,2.9,3.2,3.4')}
-  ${kcard('No Notes (7d)','418','Alert: any','dn','r','280,310,340,360,380,400,418')}
-  ${kcard('Pipeline Accuracy','72%','CRM vs actual','dn','y','80,78,77,76,75,74,72')}
-  ${kcard('Data Quality Score','64/100','Target ≥80%','dn','y','74,72,71,70,69,67,64')}
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">BD CRM discipline table</div></div>
-<div class="tw"><table class="t"><thead><tr><th>BD</th><th>Calls logged</th><th>Notes added</th><th>Compliance %</th><th>Avg lag</th><th>Pipeline acc. %</th><th>CRM score</th></tr></thead>
-<tbody>
-  <tr><td>Priya K.</td><td>148</td><td>141</td><td class="ku">95%</td><td>0.8h</td><td class="ku">94%</td><td class="ku">91/100</td></tr>
-  <tr><td>Ajay M.</td><td>131</td><td>119</td><td class="ku">91%</td><td>1.2h</td><td>88%</td><td class="ku">86/100</td></tr>
-  <tr><td>Sneha G.</td><td>112</td><td>94</td><td>84%</td><td>1.9h</td><td>81%</td><td>78/100</td></tr>
-  <tr><td>Varun T.</td><td>88</td><td>41</td><td class="kd">47%</td><td>4.1h</td><td class="kd">58%</td><td class="kd">38/100</td></tr>
-  <tr><td>Rahul S.*</td><td>44*</td><td>28</td><td class="kd">15%</td><td>7.2h</td><td class="kd">31%</td><td class="kd">12/100</td></tr>
-</tbody></table></div></div>`,
-
-'dailycalls':`
-<div class="sl">Day-wise calls per BD · bd_daily_calls · last 14 days · live</div>
-<div class="filters-bar">
-  <div class="filter-group"><span class="filter-label">BD:</span>
-    <select class="fsel" id="dwc-bd" onchange="loadDailyCalls()">
-      <option value="">All BDs</option>
-      <option value="bd_priya">Priya K.</option>
-      <option value="bd_ajay">Ajay M.</option>
-      <option value="bd_sneha">Sneha G.</option>
-      <option value="bd_neha">Neha R.</option>
-      <option value="bd_kabir">Kabir D.</option>
-      <option value="bd_varun">Varun T.</option>
-      <option value="bd_rahul">Rahul S.</option>
-      <option value="bd_dev">Dev P.</option>
-    </select>
-  </div>
-  <div class="filter-group"><span class="filter-label">Days:</span>
-    <select class="fsel" id="dwc-days" onchange="loadDailyCalls()">
-      <option value="7">Last 7</option>
-      <option value="14" selected>Last 14</option>
-      <option value="30">Last 30</option>
-    </select>
-  </div>
-</div>
-<div class="card">
-<div class="card-hdr"><div class="card-title">Calls per BD per day</div><div class="card-sub" id="dwc-asof">Loading…</div></div>
-<div class="tw"><table class="t" id="dwc-table">
-<thead><tr><th>BD</th><th>Date</th><th>Total calls</th><th>Connected</th><th>Zero-sec</th><th>Talktime (min)</th><th>Unique leads</th></tr></thead>
-<tbody><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Loading day-wise call data…</td></tr></tbody>
-</table></div>
-</div>
-<div class="card">
-<div class="card-hdr"><div class="card-title">Connected calls trend</div><div class="card-sub">Per BD, per day</div></div>
-<div class="cw" style="height:220px"><canvas id="dwcChart"></canvas></div>
-</div>`,
-
-'uncalled':`
-<div class="sl">Uncalled leads · age buckets + 15-day day-wise grid · live from uncalled_leads</div>
-<div class="kgrid" id="uncalled-buckets">
-  <div class="kcard" style="cursor:default"><div class="kcard-bar g"></div><div class="kcard-label">Loading buckets…</div><div class="kcard-val">—</div></div>
-</div>
-<div class="filters-bar">
-  <div class="filter-group"><span class="filter-label">Bucket:</span>
-    <select class="fsel" id="uc-bucket" onchange="loadUncalled()">
-      <option value="">All</option>
-      <option value="0-1d">0-1 day</option>
-      <option value="2-3d">2-3 days</option>
-      <option value="4-7d">4-7 days</option>
-      <option value="8-15d">8-15 days</option>
-      <option value="15+d" selected>15+ days</option>
-    </select>
-  </div>
-  <div class="filter-group"><span class="filter-label">BD:</span>
-    <select class="fsel" id="uc-bd" onchange="loadUncalled()">
-      <option value="">All BDs</option>
-      <option value="bd_priya">Priya K.</option>
-      <option value="bd_ajay">Ajay M.</option>
-      <option value="bd_sneha">Sneha G.</option>
-      <option value="bd_neha">Neha R.</option>
-      <option value="bd_kabir">Kabir D.</option>
-      <option value="bd_varun">Varun T.</option>
-      <option value="bd_rahul">Rahul S.</option>
-      <option value="bd_dev">Dev P.</option>
-    </select>
-  </div>
-</div>
-<div class="card">
-<div class="card-hdr"><div class="card-title">By BD × age bucket</div></div>
-<div class="tw"><table class="t" id="uc-bybd-table">
-<thead><tr><th>BD</th><th>Bucket</th><th>Leads</th></tr></thead>
-<tbody><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Loading…</td></tr></tbody>
-</table></div>
-</div>
-<div class="card">
-<div class="card-hdr"><div class="card-title">Lead detail — last call date + 15-day uncalled grid</div><div class="card-sub">Each cell = one day · red = uncalled that day · green = had a connected call</div></div>
-<div class="tw"><table class="t" id="uc-detail-table">
-<thead><tr><th>Lead</th><th>BD</th><th>Last call</th><th>Days since</th><th>Bucket</th><th colspan="15" style="text-align:center">Last 15 days (newest → oldest)</th></tr></thead>
-<tbody><tr><td colspan="20" style="text-align:center;color:var(--muted);padding:20px">Select a bucket/BD above…</td></tr></tbody>
-</table></div>
-</div>`,
-
-'settings':`
-<div class="sl">Connector settings · API keys stored server-side only · never embedded in this HTML</div>
-<div class="card" style="background:#FEF9E7;border-color:#FBEEC1">
-  <div style="display:flex;gap:10px;align-items:flex-start">
-    <i class="ti ti-shield-lock" style="font-size:18px;color:var(--gold);flex-shrink:0;margin-top:2px"></i>
-    <div style="font-size:12px;color:var(--text);line-height:1.6">
-      <strong>How this works:</strong> keys you enter below are sent once to your backend and stored in <code>db/riscc.sqlite</code> (table <code>api_settings</code>).
-      They are never written into this HTML/JS file and never sent back to the browser in full — only a masked preview (e.g. <code>sk-a••••••••wXyz</code>) is shown.
-      You can deploy this HTML publicly without exposing credentials, as long as your backend itself is not publicly readable (keep <code>/api/settings</code> behind <code>ADMIN_TOKEN</code> — see README).
-    </div>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-hdr"><div class="card-title">Admin token</div><div class="card-sub">Only needed if your backend has ADMIN_TOKEN set in .env</div></div>
-  <div class="filter-group">
-    <span class="filter-label" style="min-width:90px">Token:</span>
-    <input type="password" id="admin-token-input" placeholder="Paste ADMIN_TOKEN if your backend requires it" style="flex:1;font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg)"/>
-    <button class="btn-sm btn-primary" onclick="saveAdminToken()">Save in this browser</button>
-  </div>
-  <div style="font-size:11px;color:var(--muted);margin-top:6px">Stored only in this browser's localStorage — sent as a Bearer token to /api/settings and /api/sync.</div>
-</div>
-
-<div id="settings-cards">
-  <div class="card">Loading connector settings…</div>
-</div>
-
-<div class="card">
-  <div class="card-hdr"><div class="card-title">Manual sync</div><div class="card-sub">Trigger a pull from a connector right now (also runs automatically every 15 min)</div></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap" id="sync-buttons"></div>
-  <div id="sync-result" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
-</div>`,
+'crm':`
+<div class="kgrid" id="crm-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
+<div class="card"><div class="card-hdr"><div class="card-title">BD CRM Discipline</div></div>
+  <div class="tw"><table class="t" id="crm-table">
+    <thead><tr><th>BD</th><th>Calls logged</th><th>CRM logged %</th><th>Avg log lag (hrs)</th></tr></thead>
+    <tbody><tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+  </table></div>
+</div>`
 
 'schema':`
-<div class="sl">Database schema · 7 core tables · 6 materialized views · 15-min refresh</div>
-<div class="g2">
-${[['leads','Primary entity','16 fields',
-    fr('lead_id','VARCHAR(50)','Unique lead identifier from CRM',['PK'])+
-    fr('phone_normalized','VARCHAR(15)','Phone stripped to 10 digits',['IDX'])+
-    fr('crm_id','VARCHAR(50)','CRM system ID for matching',[])+
-    fr('email','VARCHAR(100)','Lowercase normalized',[])+
-    fr('name','VARCHAR(100)','Lead name',[])+
-    fr('source','VARCHAR(50)','Lead generation source',[])+
-    fr('campaign_id','VARCHAR(50)','References campaigns',['FK'])+
-    fr('state','VARCHAR(50)','State/region',[])+
-    fr('category','VARCHAR(50)','Fresh/Repeat/Referral',[])+
-    fr('assigned_bd_id','VARCHAR(50)','References bds',['FK'])+
-    fr('assigned_date','DATETIME','When pushed to BD',[])+
-    fr('status','ENUM','Open/Interested/Proposal/Converted/Lost',[])+
-    fr('temperature','ENUM','Hot/Warm/Cold',[])+
-    fr('last_call_date','DATETIME','Most recent connected call',[])+
-    fr('last_crm_update','DATETIME','Most recent CRM activity',[])+
-    fr('created_at','DATETIME','Record creation',['IDX'])
-   ],
-  ['calls','Call activity','9 fields',
-    fr('call_id','VARCHAR(50)','Unique call ID from OCRM',['PK'])+
-    fr('lead_id','VARCHAR(50)','References leads',['FK','IDX'])+
-    fr('bd_id','VARCHAR(50)','References bds',['FK','IDX'])+
-    fr('call_timestamp','DATETIME','Exact call time',['IDX'])+
-    fr('duration_seconds','INT','0 = not connected; >30s = connected',[])+
-    fr('outcome','VARCHAR(50)','Connected/Not Connected/Busy/No Answer',[])+
-    fr('recording_url','TEXT','Link to recording',[])+
-    fr('crm_logged','BOOLEAN','Logged in CRM?',[])+
-    fr('crm_log_time','DATETIME','When BD logged the call',['IDX'])
-   ],
-  ['sales','Orders & revenue','10 fields',
-    fr('order_id','VARCHAR(50)','Unique order ID',['PK'])+
-    fr('lead_id','VARCHAR(50)','References leads',['FK'])+
-    fr('bd_id','VARCHAR(50)','Selling BD',['FK'])+
-    fr('course_id','VARCHAR(50)','Course enrolled',['FK'])+
-    fr('gross_amount','DECIMAL(10,2)','Full fee agreed',[])+
-    fr('waiver_amount','DECIMAL(10,2)','Discount granted',[])+
-    fr('net_amount','DECIMAL(10,2)','gross − waiver',[])+
-    fr('sale_date','DATETIME','Order confirmation date',['IDX'])+
-    fr('payment_type','ENUM','Full/EMI/Partial',[])+
-    fr('status','ENUM','Confirmed/Refunded/On Hold',['IDX'])
-   ],
-  ['followups','FU tracking','7 fields',
-    fr('followup_id','VARCHAR(50)','Unique ID',['PK'])+
-    fr('lead_id','VARCHAR(50)','Lead for this FU',['FK'])+
-    fr('bd_id','VARCHAR(50)','BD responsible',['FK'])+
-    fr('scheduled_date','DATETIME','Committed FU date',['IDX'])+
-    fr('actual_followup_date','DATETIME','Matched from calls (±4h)',[])+
-    fr('gap_hours','DECIMAL(5,1)','actual − scheduled, target 0',[])+
-    fr('status','ENUM','Pending/Done/Missed',[])
-   ]
-].map(([name,sub,cnt,fields])=>`<div class="tbl-card"><div class="tbl-hdr"><span class="tbl-name">${name}</span><span style="font-size:11px;color:var(--muted)">${sub} · ${cnt}</span></div>${fields}</div>`).join('')}
+<div class="sl">Database schema · Postgres · 7 core tables · 2 materialized views · 15-min refresh</div>
+<div class="card"><div class="card-hdr"><div class="card-title">Core Tables</div></div>
+  <div style="font-size:12px;color:var(--muted);line-height:2">
+    <strong>bds</strong> — BD roster (bd_id, name, team_leader_id, team_id, join_date, status, targets)<br>
+    <strong>team_leaders</strong> — TL registry (tl_id, name) — auto-created from OCRM team_name<br>
+    <strong>leads</strong> — Lead master (lead_id, phone, email, name, source, assigned_bd_id, status, temperature, dates)<br>
+    <strong>calls</strong> — Call log (call_id, lead_id, bd_id, timestamp, duration_seconds, outcome) — synthetic per-lead aggregates from OCRM<br>
+    <strong>sales</strong> — Transactions (order_id, lead_id, bd_id, gross/net/waiver, sale_date, payment_type, status)<br>
+    <strong>followups</strong> — Follow-up tracking (followup_id, lead_id, bd_id, scheduled_date, status)<br>
+    <strong>collections</strong> — Payment tracking (collection_id, order_id, amount_due, amount_collected, status)<br>
+    <strong>config</strong> — Revenue targets and settings<br>
+    <strong>api_settings</strong> — Connector keys (stored server-side, never exposed to browser)
+  </div>
 </div>
-<div class="g2">
-${[['bds','BD roster','8 fields',
-    fr('bd_id','VARCHAR(50)','BD identifier',['PK'])+
-    fr('name','VARCHAR(100)','Full name',[])+
-    fr('team_leader_id','VARCHAR(50)','References team_leaders',['FK'])+
-    fr('team_id','VARCHAR(50)','References teams',['FK'])+
-    fr('join_date','DATE','Employment start',[])+
-    fr('status','ENUM','Active/Inactive',[])+
-    fr('monthly_target_revenue','DECIMAL(10,2)','Revenue target',[])+
-    fr('monthly_target_sales','INT','Sales count target',[])
-   ],
-  ['campaigns','Source budgets','7 fields',
-    fr('campaign_id','VARCHAR(50)','Unique campaign ID',['PK'])+
-    fr('name','VARCHAR(100)','Campaign name',[])+
-    fr('source','VARCHAR(50)','Channel',[])+
-    fr('spend','DECIMAL(10,2)','Total spend',[])+
-    fr('start_date','DATE','Campaign start',[])+
-    fr('end_date','DATE','Campaign end (NULL=ongoing)',[])+
-    fr('leads_generated','INT','Computed lead count',[])
-   ],
-  ['collections','Payment tracking','7 fields',
-    fr('collection_id','VARCHAR(50)','Unique ID',['PK'])+
-    fr('order_id','VARCHAR(50)','References sales',['FK'])+
-    fr('amount_due','DECIMAL(10,2)','Expected payment',[])+
-    fr('amount_collected','DECIMAL(10,2)','Actual received',[])+
-    fr('due_date','DATE','Payment due date',['IDX'])+
-    fr('payment_date','DATE','Actual payment (NULL=unpaid)',[])+
-    fr('status','ENUM','Paid/Overdue/Partial/Defaulted',['IDX'])
-   ]
-].map(([name,sub,cnt,fields])=>`<div class="tbl-card"><div class="tbl-hdr"><span class="tbl-name">${name}</span><span style="font-size:11px;color:var(--muted)">${sub} · ${cnt}</span></div>${fields}</div>`).join('')}
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">6 Materialized views — refresh every 15 minutes</div></div>
-${[['v_bd_daily_summary','BD performance pages','Per BD per day: all KPIs pre-aggregated. Eliminates joins across calls, leads, sales, followups on every load.',
-    `SELECT bd_id, DATE(call_timestamp) as date,
-  COUNT(*) as total_calls,
-  SUM(CASE WHEN duration_seconds>30 THEN 1 ELSE 0 END) as connected_calls,
-  SUM(duration_seconds)/3600 as talktime_hours
-FROM calls JOIN leads USING(lead_id)
-GROUP BY bd_id, DATE(call_timestamp)`],
-   ['v_lead_lifecycle','Lead leakage + funnel','Per lead: full journey from assignment → outcome. Powers leakage categories and cohort.',
-    `SELECT l.lead_id, l.assigned_date, l.status, l.temperature,
-  MIN(c.call_timestamp) as first_call, MAX(c.call_timestamp) as last_call,
-  COUNT(c.call_id) as total_calls, s.sale_date, s.net_amount
-FROM leads l LEFT JOIN calls c USING(lead_id) LEFT JOIN sales s USING(lead_id)
-GROUP BY l.lead_id`],
-   ['v_source_performance','Source analysis','Per source: CPL, CVR, revenue, ROI. Joins campaigns → leads → calls → sales.',
-    `SELECT c.source, c.spend, COUNT(l.lead_id) as leads_generated,
-  c.spend / NULLIF(COUNT(l.lead_id),0) as cpl,
-  COUNT(s.order_id)*100.0/NULLIF(COUNT(l.lead_id),0) as cvr_pct,
-  SUM(s.net_amount) as revenue
-FROM campaigns c JOIN leads l USING(campaign_id) LEFT JOIN sales s USING(lead_id)
-GROUP BY c.source`],
-   ['v_manipulation_scores','Anti-manipulation engine','Per BD: daily score with all 6 signal components. >60 = flagged, >80 = auto-escalate.',
-    `SELECT bd_id, DATE(call_timestamp) as date,
-  SUM(CASE WHEN duration_seconds=0 THEN 1 ELSE 0 END)*100/COUNT(*) as zero_sec_pct,
-  -- + rapid-dial, ghost-FU, after-hours, avg-duration, CVR-inflation signals
-  [weighted_score_formula] as manipulation_score
-FROM calls GROUP BY bd_id, DATE(call_timestamp)`],
-   ['v_forecast_inputs','Forecast dashboard','Run rate, pipeline, collections, adjustment factor — all 4 components.',
-    `SELECT
-  AVG(daily_net_revenue)*remaining_days as run_rate_component,
-  active_leads*rolling_cvr_30d*avg_net_ticket as pipeline_component,
-  SUM(emi_due_this_month)*0.84 as collection_component,
-  CASE WHEN cvr_trending_up THEN 0.05
-       WHEN cvr_trending_down THEN -0.05
-       WHEN manipulation_detected THEN -0.10
-       ELSE 0 END as adjustment_factor
-FROM [aggregated_daily_metrics]`],
-   ['v_followup_status','Follow-up + daily review','Open FUs with overdue flag, days overdue, revenue at risk per temperature.',
-    `SELECT f.followup_id, f.lead_id, f.bd_id, f.scheduled_date, f.status,
-  DATEDIFF(NOW(), f.scheduled_date) as days_overdue, l.temperature,
-  CASE WHEN l.temperature='Hot' THEN 0.184
-       WHEN l.temperature='Warm' THEN 0.092
-       ELSE 0.031 END * 77900 as revenue_at_risk
-FROM followups f JOIN leads l USING(lead_id)
-WHERE f.status IN ('Pending','Missed')`]
-].map(([name,dash,desc,sql])=>`<div class="view-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div class="view-name">${name}</div><span class="badge b-p2">${dash}</span></div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">${desc}</div><div class="view-sql">${sql}</div></div>`).join('')}
-</div>
-<div class="card"><div class="card-hdr"><div class="card-title">Build sequence — Doc 6, §6</div></div>
-<table class="t"><thead><tr><th>Phase</th><th>Build order</th><th>Deliverable</th></tr></thead>
-<tbody>
-  ${[['1 — Foundation','Database schema + ETL + data connections','Live data in all tables'],['2 — Global Filters','Filter bar + date logic + dropdowns','All filters working'],['3 — Level 1','Command Center + KPI cards + red flags','Management ready Day 1'],['4 — Level 2','BD + TL + Source + FU + Productivity + Leakage + CRM','Full sales ops visible'],['5 — Level 3','Revenue + Collections + Funnel + Cohort + Forecast','Revenue intel live'],['6 — Level 4','AI Analyst + Coaching + Copilot + Allocation','AI layer active'],['7 — Level 5','Call Quality + recording integration','Call intel live'],['8 — Daily Review','Auto-generated morning brief + scheduling','Operational rhythm set']].map(([p,b,d])=>`<tr><td style="font-weight:500">${p}</td><td>${b}</td><td class="ku">${d}</td></tr>`).join('')}
-</tbody></table></div>`
+<div class="card"><div class="card-hdr"><div class="card-title">Materialized Tables (refreshed every 15 min)</div></div>
+  <div style="font-size:12px;color:var(--muted);line-height:2">
+    <strong>bd_daily_calls</strong> — Day-wise call activity per BD (total, connected, zero-sec, talktime)<br>
+    <strong>uncalled_leads</strong> — Per-lead age buckets and 15-day daywise flags
+  </div>
+</div>`
 };
 
 // ── Chart inits ───────────────────────────────────────────────────────
@@ -1265,15 +724,10 @@ function initC(page){
 
 // ── Heatmap ───────────────────────────────────────────────────────────
 function buildHeatmap(){
-  const bds=['Priya K.','Ajay M.','Sneha G.','Varun T.','Rahul S.*'];
+  // heatmap data loaded live via loadProd() when prod page is navigated to
+  const bds=[];
   const hrs=Array.from({length:11},(_,i)=>i+8);
-  const data={
-    'Priya K.':[0,3,8,12,9,11,10,8,7,6,2],
-    'Ajay M.':[0,2,7,11,8,10,9,7,6,5,1],
-    'Sneha G.':[0,1,5,9,7,8,8,6,5,4,0],
-    'Varun T.':[0,0,3,4,3,5,4,3,2,1,0],
-    'Rahul S.*':[0,0,1,2,1,1,1,0,1,0,0]
-  };
+  const data={};
   const max=12;
   const container=document.getElementById('heatmap-container');
   let html='<div style="display:flex;flex-direction:column;gap:4px;padding:4px 0">';
@@ -1345,7 +799,164 @@ function sortTbl(th){th.textContent=th.textContent.includes('▲')?th.textConten
 // ════════════════════════════════════════════════════════════════
 // LIVE DATA LOADERS — fetch from backend and patch the DOM
 // ════════════════════════════════════════════════════════════════
-const BD_NAMES = {bd_priya:'Priya K.',bd_ajay:'Ajay M.',bd_sneha:'Sneha G.',bd_neha:'Neha R.',bd_kabir:'Kabir D.',bd_varun:'Varun T.',bd_rahul:'Rahul S.',bd_dev:'Dev P.'};
+const BD_NAMES = {}; // populated from live /api/bd-performance
+
+
+// ── Revenue Intelligence ─────────────────────────────────────────
+async function loadRev(){
+  const d = await api('/exec-summary');
+  if(!d) return;
+  const fmtCr = v => v>=10000000?'₹'+(v/10000000).toFixed(2)+'Cr':v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+Math.round(v).toLocaleString('en-IN');
+  const kg = document.getElementById('rev-kgrid');
+  if(kg) kg.innerHTML = [
+    ['Gross Revenue', fmtCr(d.revenue.gross)],
+    ['Net Collected', fmtCr(d.revenue.net)],
+    ['Waivers', fmtCr(d.revenue.waivers)],
+    ['Refunds', fmtCr(d.revenue.refunds)],
+    ['Revenue Gap %', (((d.revenue.gross-d.revenue.net)/Math.max(d.revenue.gross,1))*100).toFixed(1)+'%'],
+    ['Avg Ticket (net)', fmtCr(d.sales.avg_ticket)],
+  ].map(([l,v])=>`<div class="kcard" style="cursor:default"><div class="kcard-bar g"></div><div class="kcard-label">${l}</div><div class="kcard-val" style="font-size:22px">${v}</div></div>`).join('');
+  const tb = document.querySelector('#rev-table tbody');
+  if(tb) tb.innerHTML = `<tr><td style="font-weight:500">All BDs</td><td>All</td><td>${fmtCr(d.revenue.net)}</td><td>100%</td><td>—</td></tr>`;
+}
+
+// ── Collections ───────────────────────────────────────────────────
+async function loadColPage(){
+  const d = await api('/collections');
+  if(!d) return;
+  const fmtCr = v => v>=10000000?'₹'+(v/10000000).toFixed(2)+'Cr':v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+Math.round(v).toLocaleString('en-IN');
+  const kg = document.getElementById('col-kgrid');
+  if(kg) kg.innerHTML = [
+    ['Total Fees Due', fmtCr(d.total_fees_due), 'g'],
+    ['Total Collected', fmtCr(d.total_collected), 'y'],
+    ['Collection Rate', d.collection_rate_pct+'%', d.collection_rate_pct>=90?'g':'y'],
+    ['Overdue >7 days', fmtCr(d.overdue_7days), 'r'],
+    ['Overdue >30 days', fmtCr(d.overdue_30days), 'r'],
+    ['EMI Default Rate', d.emi_default_rate_pct+'%', d.emi_default_rate_pct>5?'r':'g'],
+  ].map(([l,v,b])=>`<div class="kcard" style="cursor:default"><div class="kcard-bar ${b}"></div><div class="kcard-label">${l}</div><div class="kcard-val" style="font-size:22px">${v}</div></div>`).join('');
+  const tb = document.querySelector('#col-table tbody');
+  if(tb) tb.innerHTML = (d.overdue_table||[]).length
+    ? d.overdue_table.map(r=>`<tr><td>${r.collection_id}</td><td>${r.bd_name}</td><td>₹${Math.round(r.amount_due).toLocaleString('en-IN')}</td><td>₹${Math.round(r.amount_collected).toLocaleString('en-IN')}</td><td>₹${Math.round(r.amount_due-r.amount_collected).toLocaleString('en-IN')}</td><td class="kd">${r.days_overdue}d</td><td><span class="badge b-bad">${r.status}</span></td></tr>`).join('')
+    : '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">No overdue collections</td></tr>';
+}
+
+// ── CRM Discipline ────────────────────────────────────────────────
+async function loadCrm(){
+  const bds = await api('/bd-performance');
+  if(!bds) return;
+  const tb = document.querySelector('#crm-table tbody');
+  const kg = document.getElementById('crm-kgrid');
+  const avgCrmPct = bds.length ? Math.round(bds.reduce((s,b)=>s+(b.total_calls>0?100:0),0)/bds.length) : 0;
+  if(kg) kg.innerHTML = [
+    ['CRM Update Compliance', avgCrmPct+'%', avgCrmPct>=80?'g':'r'],
+    ['BDs with calls today', bds.filter(b=>b.total_calls>0).length+'/'+bds.length, 'y'],
+  ].map(([l,v,b])=>`<div class="kcard" style="cursor:default"><div class="kcard-bar ${b}"></div><div class="kcard-label">${l}</div><div class="kcard-val" style="font-size:22px">${v}</div></div>`).join('');
+  if(tb) tb.innerHTML = bds.map(b=>`<tr><td style="font-weight:500">${b.name}</td><td>${b.total_calls}</td><td>${b.total_calls>0?'Active':'No calls'}</td><td>—</td></tr>`).join('');
+}
+
+// ── Daily Review ──────────────────────────────────────────────────
+async function loadDaily(){
+  const [exec, bd, fu] = await Promise.all([api('/exec-summary'), api('/bd-performance'), api('/followups')]);
+  if(!exec) return;
+  const fmtCr = v => v>=10000000?'₹'+(v/10000000).toFixed(2)+'Cr':v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+Math.round(v).toLocaleString('en-IN');
+  const lbl = document.getElementById('daily-date-label');
+  if(lbl) lbl.textContent = `Daily Review — ${exec.as_of}`;
+  const tb = document.querySelector('#daily-table tbody');
+  if(tb) tb.innerHTML = [
+    ['Leads assigned', exec.leads.assigned, 'MTD total'],
+    ['Leads contacted', exec.leads.contacted, exec.leads.uncontacted_pct+'% uncontacted'],
+    ['Net Revenue', fmtCr(exec.revenue.net), (exec.revenue.pct_of_target)+'% of target'],
+    ['Sales MTD', exec.sales.total_mtd, 'Real CVR '+exec.sales.real_cvr_pct+'%'],
+    ['Overdue follow-ups', fu?fu.overdue:'—', fu&&fu.overdue>50?'⚠ High':'On track'],
+  ].map(([m,v,s])=>`<tr><td style="font-weight:500">${m}</td><td>${v}</td><td>${s}</td></tr>`).join('');
+  const stars = document.getElementById('daily-stars');
+  if(stars && bd && bd.length) {
+    const top = [...bd].sort((a,b)=>b.revenue-a.revenue)[0];
+    const topCvr = [...bd].sort((a,b)=>b.real_cvr_pct-a.real_cvr_pct)[0];
+    stars.innerHTML = [
+      ['Top BD — revenue', top.name+' · '+fmtCr(top.revenue)],
+      ['Top BD — real CVR', topCvr.name+' · '+topCvr.real_cvr_pct+'%'],
+    ].map(([l,v])=>`<div class="mrow"><span class="ml">${l}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${v}</span></div>`).join('');
+  }
+  const flags = document.getElementById('daily-flags');
+  if(flags) {
+    const items = [];
+    if(exec.leads.uncontacted_pct>25) items.push(`${exec.leads.uncontacted} uncontacted leads — ${exec.leads.uncontacted_pct}% of total`);
+    if(fu && fu.overdue>0) items.push(`${fu.overdue} overdue follow-ups`);
+    if(bd) {
+      const frozen = bd.filter(b=>b.manipulation_score>80);
+      if(frozen.length) items.push(`${frozen.length} BD(s) with manipulation score >80`);
+    }
+    flags.innerHTML = items.length
+      ? items.map(t=>`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border)"><i class="ti ti-alert-triangle" style="color:var(--accent);flex-shrink:0"></i><div style="font-size:12px">${t}</div></div>`).join('')
+      : '<div style="padding:8px;color:var(--success)">No critical flags today ✓</div>';
+  }
+}
+
+// ── Lead Allocation (reuses bd-performance data) ──────────────────
+async function loadAlloc(){
+  const bds = await api('/bd-performance');
+  if(!bds) return;
+  const tb = document.querySelector('#alloc-table tbody');
+  if(!tb) return;
+  tb.innerHTML = [...bds].sort((a,b)=>b.bd_score-a.bd_score).map(b=>{
+    const sc = b.bd_score;
+    const cls = sc>=0.75?'ku':sc>=0.5?'kw':'kd';
+    return `<tr><td style="font-weight:500">${b.name}</td><td>${b.tl}</td><td>${b.real_cvr_pct}%</td><td>${b.chase_pct}%</td><td>${b.penetration_pct}%</td><td class="${b.manipulation_score>60?'kd':b.manipulation_score>20?'kw':'ku'}">${b.manipulation_score}</td><td class="${cls}" style="font-weight:700">${sc}</td><td><span class="badge ${b.status==='Star'?'b-ok':b.status==='Watch'||b.status==='Reduce'?'b-warn':'b-bad'}">${b.status}</span></td></tr>`;
+  }).join('');
+}
+
+// ── Call Stats (reuses bd-performance data) ───────────────────────
+async function loadCallStats(){
+  const bds = await api('/bd-performance');
+  if(!bds) return;
+  const tb = document.querySelector('#call-stats-table tbody');
+  if(tb) tb.innerHTML = [...bds].sort((a,b)=>b.total_calls-a.total_calls).map(b=>{
+    const avgMin = b.connected_calls>0?(b.talktime_hours*60/b.connected_calls).toFixed(1):'—';
+    const zeroC = b.zero_sec_calls>0?`<span class="kd">${b.zero_sec_calls}</span>`:b.zero_sec_calls;
+    return `<tr><td style="font-weight:500">${b.name}</td><td>${b.total_calls}</td><td>${b.connected_calls}</td><td>${avgMin}</td><td>${zeroC}</td></tr>`;
+  }).join('');
+  const out = document.getElementById('call-outcomes');
+  if(out) {
+    const totalZero = bds.reduce((s,b)=>s+b.zero_sec_calls,0);
+    const totalCalls = bds.reduce((s,b)=>s+b.total_calls,0);
+    const totalConn = bds.reduce((s,b)=>s+b.connected_calls,0);
+    out.innerHTML = [
+      ['Total calls', totalCalls],
+      ['Connected (>30s)', totalConn],
+      ['Zero-second calls', totalZero],
+      ['Connection rate', totalCalls?Math.round(totalConn/totalCalls*100)+'%':'—'],
+    ].map(([l,v])=>`<div class="mrow"><span class="ml">${l}</span><span class="mv">${v}</span></div>`).join('');
+  }
+}
+
+// ── Productivity (day-wise calls heatmap) ─────────────────────────
+async function loadProd(){
+  const d = await api('/bd-daily-calls');
+  if(!d) return;
+  const wrap = document.getElementById('prod-table-wrap');
+  if(!wrap) return;
+  const bds = Object.keys(d.by_bd);
+  if(!bds.length){ wrap.innerHTML='<p style="padding:16px;color:var(--muted)">No call data yet — run OCRM sync first.</p>'; return; }
+  // Build a simple table: BD | day1 | day2 ... (last 14 days)
+  const allDates = [...new Set(d.flat.map(r=>r.date.slice?r.date.slice(0,10):String(r.date).slice(0,10)))].sort().slice(-14);
+  let html = '<table class="t"><thead><tr><th>BD</th>'+allDates.map(d=>`<th style="font-size:9px">${d.slice(5)}</th>`).join('')+'</tr></thead><tbody>';
+  for(const bd of bds){
+    const rows = d.by_bd[bd];
+    const byDate = {};
+    rows.forEach(r=>{ const dt=r.date.slice?r.date.slice(0,10):String(r.date).slice(0,10); byDate[dt]=r; });
+    html += `<tr><td style="font-weight:500;white-space:nowrap">${bd}</td>`;
+    for(const dt of allDates){
+      const r = byDate[dt];
+      const cc = r?r.connected_calls:0;
+      const bg = cc>5?'rgba(22,163,74,.8)':cc>2?'rgba(22,163,74,.4)':cc>0?'rgba(22,163,74,.2)':'rgba(229,231,235,.5)';
+      html += `<td style="background:${bg};text-align:center;font-size:10px">${cc||''}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table><div style="font-size:10px;color:var(--muted);margin-top:6px">Values = connected calls (duration >30s) per day</div>';
+  wrap.innerHTML = html;
+}
 
 const LOADERS = {
   exec: loadExec,
@@ -1355,9 +966,14 @@ const LOADERS = {
   followup: loadFollowup,
   leakage: loadLeakage,
   forecast: loadForecast,
-  collections: loadCollectionsPage,
-  col: loadCollectionsPage,
+  col: loadColPage,
+  rev: loadRev,
   funnel: loadFunnel,
+  daily: loadDaily,
+  prod: loadProd,
+  crm: loadCrm,
+  alloc: loadAlloc,
+  call: loadCallStats,
   dailycalls: loadDailyCalls,
   uncalled: loadUncalled,
   settings: loadSettings,
