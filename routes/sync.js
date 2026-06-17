@@ -90,92 +90,63 @@ async function syncOcrm(setting) {
   let callsUpserted = 0;
   let followupsUpserted = 0;
 
+  // Helper: truncate to column limit
+  const t = (val, max) => val ? String(val).slice(0, max) : null;
+
   for (const r of rows) {
     const leadId = r.Lead_id ? `lead_${String(r.Lead_id).trim()}` : null;
     if (!leadId) continue;
-    // Universal truncation helper — applied to every string field before DB insert
-    const trunc = (val, max) => val ? String(val).slice(0, max) : null;
-    // Pre-sanitize all fields that go into fixed-length columns
-    // Log any field that might exceed its column limit (remove after confirmed working)
-    const fieldLengths = {
-      lead_name: String(r.lead_name||'').length,
-      lead_email: String(r.lead_email||'').length,
-      lead_mobile: String(r.lead_Mobile||'').length,
-      source: String(r.source_tag||'').length,
-      state: String(r.State||'').length,
-      category: String(r.Lead_Category||'').length,
-      team_name: String(r.team_name||'').length,
-      employee_email: String(r.employeeEmail||'').length,
-      outcome: String(r.lastCallStatus||r.currentStatus||'').length,
-      assign_expOn: String(r.assign_expOn||'').length,
-    };
-    const overLimit = Object.entries(fieldLengths).filter(([k,v]) => v > 100);
-    if (overLimit.length) console.warn('[ocrm] overlimit fields Lead_id', r.Lead_id, overLimit);
-
-    const safe = {
-      lead_name:     safe.lead_name,
-      lead_email:    safe.lead_email,
-      lead_mobile:   safe.lead_mobile,
-      source_tag:    trunc(r.source_tag, 50),
-      state:         safe.state,
-      category:      safe.category,
-      assignOn:      r.assignOn || r.Assign_Date || new Date().toISOString(),
-      crm_id:        safe.crm_id,
-      outcome:       safe.outcome,
-      team_name_id:  trunc(r.team_name ? `team_${r.team_name}` : null, 50),
-      bd_name:       trunc(r.Agent || r.employeeEmail || '', 100),
-    };
 
     const bdId = (r.Emp_id || r.assign_BD)
       ? `bd_${String(r.Emp_id || r.assign_BD).trim()}`
       : null;
 
-    // ── Team Leader: derive from team_name (e.g. "Team Maneesh ATL (Select)" -> "Maneesh") ──
+    // ── Team Leader: derive from team_name ──
     let tlId = null;
     if (r.team_name) {
-      let tlName = String(r.team_name).trim();
-      tlName = tlName.replace(/^Team\s+/, '');
-      tlName = tlName.replace(/\s*(ATL\s*)?\((Select|AGM|ASM)\)\s*$/, '').trim();
+      let tlName = String(r.team_name).trim()
+        .replace(/^Team\s+/, '')
+        .replace(/\s*(ATL\s*)?\((Select|AGM|ASM)\)\s*$/, '')
+        .trim();
       if (tlName) {
-        tlId = `tl_${tlName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`.slice(0, 50);
+        tlId = t(`tl_${tlName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`, 50);
         const tlExists = await one(`SELECT tl_id FROM team_leaders WHERE tl_id=?`, [tlId]);
         if (!tlExists) {
-          await runNoPersist(`INSERT INTO team_leaders (tl_id, name) VALUES (?, ?) ON CONFLICT(tl_id) DO NOTHING`, [tlId, trunc(tlName, 100)]);
+          await runNoPersist(
+            `INSERT INTO team_leaders (tl_id, name) VALUES (?, ?) ON CONFLICT(tl_id) DO NOTHING`,
+            [tlId, t(tlName, 100)]
+          );
         }
       }
     }
 
-    // Ensure BD exists (lead-level feed may reference BDs not seen in sales sync)
+    // ── Ensure BD exists ──
     if (bdId) {
       const exists = await one(`SELECT bd_id, team_leader_id FROM bds WHERE bd_id=?`, [bdId]);
-      // BD name: prefer Agent name over email (emails can exceed 100 chars)
-      const bdName = safe.bd_name || bdId;
-      const teamId = safe.team_name_id;
       if (!exists) {
         await runNoPersist(`
           INSERT INTO bds (bd_id, name, team_leader_id, team_id, join_date, status, monthly_target_revenue, monthly_target_sales)
           VALUES (?, ?, ?, ?, CURRENT_DATE, 'Active', 0, 0)
           ON CONFLICT(bd_id) DO NOTHING
-        `, [bdId, bdName, tlId, teamId]);
+        `, [bdId, t(r.Agent || r.employeeEmail || bdId, 100), tlId, t(r.team_name ? `team_${r.team_name}` : null, 50)]);
       } else if (tlId && !exists.team_leader_id) {
-        // backfill team_leader_id for BDs created before this mapping existed
         await runNoPersist(`UPDATE bds SET team_leader_id=? WHERE bd_id=?`, [tlId, bdId]);
       }
     }
 
-    // ── source: first entry of `sources` JSON array, fallback source_tag ──
-    let source = r.source_tag || 'Unknown';
+    // ── source: first entry of sources JSON array, fallback source_tag ──
+    let source = t(r.source_tag || 'Unknown', 50);
     if (r.sources) {
       try {
         const arr = JSON.parse(r.sources);
-        if (Array.isArray(arr) && arr.length) source = arr[0];
-      } catch (e) { /* leave as source_tag */ }
+        if (Array.isArray(arr) && arr.length) source = t(arr[0], 50);
+      } catch (e) {}
     }
 
-    // ── status: Sale_Number > Open_Closed/stage ──
-    let status = 'Open';
+    // ── status ──
     const stage = (r.stage || '').trim();
     const openClosed = (r.Open_Closed || '').trim();
+    let status = 'Open';
     if (r.Sale_Number) {
       status = 'Converted';
     } else if (openClosed === 'Closed') {
@@ -184,20 +155,16 @@ async function syncOcrm(setting) {
       status = 'Interested';
     } else if (r.Sale_Amount) {
       status = 'Proposal';
-    } else {
-      status = 'Open';
     }
 
-    // ── temperature: derive from stage/currentStatus ──
-    let temperature = 'Cold';
-    const cur = (r.currentStatus || '').toLowerCase();
+    // ── temperature ──
     const stg = stage.toLowerCase();
+    const cur = (r.currentStatus || '').toLowerCase();
+    let temperature = 'Cold';
     if (/promise.?to.?pay|high intent|interested|sales.?done/.test(stg) || /promise.?to.?pay|high intent|interested/.test(cur)) {
       temperature = 'Hot';
     } else if (/follow.?up required|call back later/.test(stg)) {
       temperature = 'Warm';
-    } else {
-      temperature = 'Cold';
     }
 
     // ── upsert lead ──
@@ -211,14 +178,14 @@ async function syncOcrm(setting) {
         category=excluded.category, state=excluded.state
     `, [
       leadId,
-      trunc(r.lead_Mobile, 15),
-      trunc(String(r.Lead_id || ''), 50),
-      trunc(r.lead_email, 100),
-      trunc(r.lead_name, 100),
-      trunc(source, 50),
+      t(r.lead_Mobile, 15),
+      t(String(r.Lead_id || ''), 50),
+      t(r.lead_email, 100),
+      t(r.lead_name, 100),
+      source,
       null,
-      trunc(r.State, 50),
-      trunc(r.Lead_Category || 'Fresh', 50),
+      t(r.State, 50),
+      t(r.Lead_Category || 'Fresh', 50),
       bdId,
       r.Assign_Date || r.assignOn || new Date().toISOString(),
       status,
@@ -229,15 +196,12 @@ async function syncOcrm(setting) {
     ]);
     leadsUpserted++;
 
-    // ── synthetic `calls` row — one per lead, aggregated totals ──
+    // ── synthetic calls row ──
     const totalCalls = parseInt(r.calls, 10) || 0;
     if (totalCalls > 0 && bdId) {
-      const durHours = parseFloat(r.callDurationAmeyo)
-        || parseFloat(r.Duration)
-        || parseFloat(r.CallDuration)
-        || 0;
+      const durHours = parseFloat(r.callDurationAmeyo) || parseFloat(r.Duration) || parseFloat(r.CallDuration) || 0;
       const durationSeconds = Math.round(durHours * 3600);
-      const outcome = trunc(r.lastCallStatus || r.currentStatus || 'Unknown', 50);
+      const outcome = t(r.lastCallStatus || r.currentStatus || 'Unknown', 50);
 
       await runNoPersist(`
         INSERT INTO calls (call_id, lead_id, bd_id, call_timestamp, duration_seconds, outcome, recording_url, crm_logged, crm_log_time)
@@ -247,25 +211,18 @@ async function syncOcrm(setting) {
           call_timestamp=excluded.call_timestamp, crm_log_time=excluded.crm_log_time
       `, [
         `call_${String(r.Lead_id).trim()}_agg`,
-        leadId,
-        bdId,
+        leadId, bdId,
         r.assignOn || r.Assign_Date || new Date().toISOString(),
-        durationSeconds,
-        outcome,
-        null,
-        1,
+        durationSeconds, outcome, null, 1,
         r.assignOn || new Date().toISOString(),
       ]);
       callsUpserted++;
     }
 
-    // ── followups row — based on Chase / Today_Call / assign_expOn ──
+    // ── followups row ──
     if (bdId) {
       const needsChase = (parseInt(r.Chase, 10) || 0) > 0;
-      const fuStatus = status === 'Converted' || status === 'Lost'
-        ? 'Done'
-        : (needsChase ? 'Pending' : 'Done');
-
+      const fuStatus = (status === 'Converted' || status === 'Lost') ? 'Done' : (needsChase ? 'Pending' : 'Done');
       await runNoPersist(`
         INSERT INTO followups (followup_id, lead_id, bd_id, scheduled_date, actual_followup_date, gap_hours, status)
         VALUES (?,?,?,?,?,?,?)
@@ -274,12 +231,10 @@ async function syncOcrm(setting) {
           actual_followup_date=excluded.actual_followup_date, gap_hours=excluded.gap_hours
       `, [
         `fu_${String(r.Lead_id).trim()}`,
-        leadId,
-        bdId,
+        leadId, bdId,
         r.assign_expOn || r.assignOn || r.Assign_Date || new Date().toISOString(),
         fuStatus === 'Done' ? (r.assignOn || null) : null,
-        null,
-        fuStatus,
+        null, fuStatus,
       ]);
       followupsUpserted++;
     }
@@ -299,16 +254,6 @@ async function syncOcrm(setting) {
   };
 }
 
-// ────────────────────────────────────────────────────────────────
-// Sales API — Testbook Redash query (transactions feed)
-// Columns: mobile, pid, signUpDate, product, email, paymentMethod,
-// TxnOn, Txnmonth, center, signUpMonth, Amount, platformFees,
-// paidAmount, Goal, refund, sid, date, empCode, Agent, AgentEmpId,
-// AgentEmail, AgentMobile, Student, Team, ocrm_transId, paymentMode,
-// couponCode, couponType, DaysValidity, source, TxnId, client, goalId,
-// expiresOn, paymentGateway, emiId, eBookRevenue, bookRevenue,
-// productRevenue, status, dp, centerType, netAmount
-// ────────────────────────────────────────────────────────────────
 async function syncSalesApi(setting) {
   const extra = JSON.parse(setting.extra_config || '{}');
 
