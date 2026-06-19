@@ -357,6 +357,7 @@ function nav(el,page,title){
 // ── Live data loaders — fetch from backend and patch the DOM ────────
 async function loadPageData(page){
   if(LOADERS[page]) { try { await LOADERS[page](); } catch(e){ console.error('loader error', page, e); } }
+  enableSortingOnAllTables();
 }
 
 function toggleRibbon(){
@@ -812,7 +813,77 @@ async function sendCopFull(){
   msgs.scrollTop=msgs.scrollHeight;
 }
 
-function sortTbl(th){th.textContent=th.textContent.includes('▲')?th.textContent.replace('▲','▼'):th.textContent.replace('▼','▲');}
+// ── Generic table sorting: click header -> asc -> desc -> reset (original order) ──
+function parseCellValue(text){
+  const t = text.trim();
+  // strip common formatting: ₹, commas, %, h (hours), L/Cr suffixes handled separately
+  if (t === '—' || t === '' || t.toLowerCase()==='never') return { num: -Infinity, str: t.toLowerCase() };
+  let cleaned = t.replace(/[₹,%]/g,'').replace(/\s*h$/,'').trim();
+  // handle ₹ with L/Cr suffix e.g. "₹5.0L" "₹1.2Cr"
+  const crMatch = t.match(/₹?([\d.]+)\s*Cr/i);
+  const lMatch = t.match(/₹?([\d.]+)\s*L(?!\w)/i);
+  if (crMatch) return { num: parseFloat(crMatch[1]) * 1e7, str: t.toLowerCase() };
+  if (lMatch) return { num: parseFloat(lMatch[1]) * 1e5, str: t.toLowerCase() };
+  const num = parseFloat(cleaned.replace(/[^\d.\-]/g,''));
+  return { num: isNaN(num) ? -Infinity : num, str: t.toLowerCase() };
+}
+
+function makeSortable(table){
+  if (!table || table.dataset.sortable === '1') return;
+  table.dataset.sortable = '1';
+  const thead = table.querySelector('thead');
+  if (!thead) return;
+  const ths = thead.querySelectorAll('th');
+  ths.forEach((th, colIdx) => {
+    th.style.cursor = 'pointer';
+    th.dataset.sortState = '0'; // 0=original, 1=asc, 2=desc
+    const originalLabel = th.textContent;
+    th.addEventListener('click', () => {
+      const tbody = table.querySelector('tbody');
+      if (!tbody) return;
+      // reset other headers' visual state
+      ths.forEach(other => { if(other!==th){ other.dataset.sortState='0'; other.textContent = other.dataset.label || other.textContent.replace(/ [▲▼]$/,''); } });
+      if (!th.dataset.label) th.dataset.label = originalLabel;
+
+      // capture original row order once
+      if (!tbody.dataset.origOrder) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.forEach((r,i)=> r.dataset.origIdx = i);
+        tbody.dataset.origOrder = '1';
+      }
+
+      let state = parseInt(th.dataset.sortState || '0', 10);
+      state = (state + 1) % 3;
+      th.dataset.sortState = String(state);
+
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      if (state === 0) {
+        rows.sort((a,b)=> (parseInt(a.dataset.origIdx)||0) - (parseInt(b.dataset.origIdx)||0));
+        th.textContent = th.dataset.label;
+      } else {
+        rows.sort((a,b)=>{
+          const ca = a.children[colIdx], cb = b.children[colIdx];
+          if(!ca || !cb) return 0;
+          const va = parseCellValue(ca.textContent);
+          const vb = parseCellValue(cb.textContent);
+          // numeric compare if either has a real number, else string compare
+          let cmp;
+          if (va.num !== -Infinity || vb.num !== -Infinity) cmp = va.num - vb.num;
+          else cmp = va.str.localeCompare(vb.str);
+          return state === 1 ? cmp : -cmp;
+        });
+        th.textContent = th.dataset.label + (state===1 ? ' ▲' : ' ▼');
+      }
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+}
+
+function enableSortingOnAllTables(){
+  document.querySelectorAll('#main-content table.t').forEach(t => makeSortable(t));
+}
+
+function sortTbl(th){ /* legacy no-op, kept for compatibility */ }
 
 // ════════════════════════════════════════════════════════════════
 // LIVE DATA LOADERS — fetch from backend and patch the DOM
