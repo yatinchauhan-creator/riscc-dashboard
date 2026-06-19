@@ -379,7 +379,7 @@ async function sendCop(){
   const el = document.getElementById(thinkingId);
   if(el){
     el.style.color=''; el.style.fontStyle='';
-    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\n/g,'<br>')}`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -479,7 +479,7 @@ const PAGES={
 <div class="sl">Lead Coverage</div>
 <div class="kgrid" id="exec-lead-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
 <div class="sl">AI Priority Actions</div>
-<div class="card" id="exec-actions-card"><div style="padding:16px;color:var(--muted);text-align:center">Loading actions…</div></div>`
+<div class="card" id="exec-actions-card"><div style="padding:16px;color:var(--muted);text-align:center">Loading actions…</div></div>`,
 
 'bd':`
 <div class="sl">BD Performance · refreshed every 15 min</div>
@@ -496,7 +496,7 @@ const PAGES={
     <table class="t" id="manip-table"><thead><tr><th>BD</th><th>Score</th><th>Key signals</th><th>Status</th></tr></thead>
     <tbody><tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody></table>
   </div>
-</div>`
+</div>`,
 
 'source':`
 <div class="sl">Source performance · CAC = Spend/Sales · ROI = (Rev−Spend)/Spend×100</div>
@@ -506,7 +506,7 @@ const PAGES={
     <thead><tr><th>Source</th><th>Leads</th><th>CPL</th><th>CVR %</th><th>Real CVR %</th><th>Revenue</th><th>CAC</th><th>ROI %</th><th>Recommendation</th></tr></thead>
     <tbody><tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
   </table></div>
-</div>`
+</div>`,
 
 'followup':`
 <div class="kgrid" id="fu-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
@@ -516,12 +516,12 @@ const PAGES={
     <thead><tr><th>Lead</th><th>BD</th><th>Scheduled</th><th>Days Overdue</th><th>Temperature</th><th>Revenue at Risk</th><th>Action</th></tr></thead>
     <tbody><tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
   </table></div>
-</div>`
+</div>`,
 
 'prod':`
 <div class="card"><div class="card-hdr"><div class="card-title">Day-wise Calls by BD</div><div class="card-sub">Connected calls per BD per day</div></div>
   <div id="prod-table-wrap" style="overflow-x:auto"><p style="color:var(--muted);padding:16px">Loading…</p></div>
-</div>`
+</div>`,
 
 'leakage':`
 <div class="kgrid" id="leak-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
@@ -531,34 +531,34 @@ const PAGES={
     <table class="t" id="leak-bd-table"><thead><tr><th>BD</th><th>Uncontacted</th><th>Stale</th><th>Total</th><th>Action</th></tr></thead>
     <tbody><tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody></table>
   </div>
-</div>`
+</div>`,
 
 'funnel':`
 <div class="g3" id="funnel-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
-<div class="card"><div class="card-hdr"><div class="card-title">Conversion Funnel</div></div><div id="funnel-stages"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>`
+<div class="card"><div class="card-hdr"><div class="card-title">Conversion Funnel</div></div><div id="funnel-stages"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>`,
 
 'cohort':`
 <div class="card"><div class="card-hdr"><div class="card-title">Cohort Analysis</div><div class="card-sub">Coming soon — requires historical lead assignment data per week</div></div>
   <div style="padding:24px;text-align:center;color:var(--muted)"><i class="ti ti-grid-dots" style="font-size:32px;margin-bottom:8px;display:block"></i>Cohort CVR analysis will appear here once enough weekly data accumulates.</div>
-</div>`
+</div>`,
 
 'forecast':`
 <div class="kgrid" id="fc-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
-<div class="card"><div class="card-hdr"><div class="card-title">Forecast Formula</div></div><div id="fc-detail"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>`
+<div class="card"><div class="card-hdr"><div class="card-title">Forecast Formula</div></div><div id="fc-detail"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>`,
 
 'ai':`
 <div class="card"><div class="card-hdr"><div class="card-title">AI Analyst Insights</div><div class="card-sub">Powered by Claude — configure your Claude API key in Settings to enable</div></div>
   <div style="padding:24px;text-align:center;color:var(--muted)"><i class="ti ti-brain" style="font-size:32px;margin-bottom:8px;display:block;color:var(--gold)"></i>
   AI-generated insights will appear here once your Claude API key is saved and enabled in Settings → API Keys.<br><br>
   The AI Analyst runs at 9 AM daily, analysing all BD, lead, revenue and call data to surface P0/P1/P2 actions.</div>
-</div>`
+</div>`,
 
 'coaching':`
 <div class="card"><div class="card-hdr"><div class="card-title">AI Coaching Engine</div><div class="card-sub">Powered by Claude — configure your Claude API key in Settings to enable</div></div>
   <div style="padding:24px;text-align:center;color:var(--muted)"><i class="ti ti-target" style="font-size:32px;margin-bottom:8px;display:block;color:var(--purple)"></i>
   Personalised BD coaching cards will appear here once your Claude API key is saved and enabled in Settings → API Keys.<br><br>
   Each BD receives weekly coaching based on their call recordings, CVR trend, objection frequency and comparison to top-quartile BDs.</div>
-</div>`
+</div>`,
 
 'cop':`
 <div class="card"><div class="card-hdr"><div class="card-title">Executive Copilot</div><div class="card-sub">Ask anything about your BD, leads, revenue, or forecast · ⌘K from any page</div></div>
@@ -578,7 +578,7 @@ const PAGES={
 <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
   ${['Who are top 5 BDs?','Will we hit target?','Which BD improved most?','Which leads to reassign?','What is CVR by team?'].map(q=>`<button onclick="document.getElementById('cop-in-full').value='${q}'" style="font-size:11px;padding:5px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer">${q}</button>`).join('')}
 </div>
-</div>`
+</div>`,
 
 'alloc':`
 <div class="sl">Lead Allocation Engine · BD_Score formula</div>
@@ -587,7 +587,7 @@ const PAGES={
     <thead><tr><th>BD</th><th>TL</th><th>Real CVR</th><th>Chase %</th><th>Penetration</th><th>Manip. score</th><th>BD Score</th><th>Status</th></tr></thead>
     <tbody><tr><td colspan="8" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
   </table></div>
-</div>`
+</div>`,
 
 'call':`
 <div class="card"><div class="card-hdr"><div class="card-title">Call Quality</div><div class="card-sub">Powered by AI call analysis — connect recording URLs to enable scoring</div></div>
@@ -603,7 +603,7 @@ const PAGES={
   <div class="card"><div class="card-hdr"><div class="card-title">Call Outcomes</div></div>
     <div id="call-outcomes"><p style="color:var(--muted);padding:8px">Loading…</p></div>
   </div>
-</div>`
+</div>`,
 
 'daily':`
 <div class="sl" id="daily-date-label">Daily Review — Loading…</div>
@@ -615,7 +615,7 @@ const PAGES={
 <div class="g2">
   <div class="card"><div class="card-hdr"><div class="card-title">Top Performers</div></div><div id="daily-stars"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>
   <div class="card"><div class="card-hdr"><div class="card-title">Red Flags</div></div><div id="daily-flags"><p style="color:var(--muted);padding:8px">Loading…</p></div></div>
-</div>`
+</div>`,
 
 'tl':`
 <div class="sl">Team leader dashboard</div>
@@ -632,7 +632,7 @@ const PAGES={
     <thead><tr><th>Entity</th><th>Type</th><th>Revenue</th><th>% of Net</th><th>Rev/Lead</th></tr></thead>
     <tbody><tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
   </table></div>
-</div>`
+</div>`,
 
 'col':`
 <div class="kgrid" id="col-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
@@ -641,7 +641,7 @@ const PAGES={
     <thead><tr><th>Order</th><th>BD</th><th>Amount Due</th><th>Collected</th><th>Balance</th><th>Days Overdue</th><th>Status</th></tr></thead>
     <tbody><tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
   </table></div>
-</div>`
+</div>`,
 
 'crm':`
 <div class="kgrid" id="crm-kgrid"><div class="kcard" style="cursor:default"><div class="kcard-label">Loading…</div></div></div>
@@ -650,7 +650,7 @@ const PAGES={
     <thead><tr><th>BD</th><th>Calls logged</th><th>CRM logged %</th><th>Avg log lag (hrs)</th></tr></thead>
     <tbody><tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
   </table></div>
-</div>`
+</div>`,
 
 'schema':`
 <div class="sl">Database schema · Postgres · 7 core tables · 2 materialized views · 15-min refresh</div>
@@ -724,12 +724,12 @@ function initC(page){
 
 // ── Heatmap ───────────────────────────────────────────────────────────
 function buildHeatmap(){
-  // heatmap data loaded live via loadProd() when prod page is navigated to
   const bds=[];
   const hrs=Array.from({length:11},(_,i)=>i+8);
   const data={};
   const max=12;
   const container=document.getElementById('heatmap-container');
+  if(!container) return;
   let html='<div style="display:flex;flex-direction:column;gap:4px;padding:4px 0">';
   html+='<div style="display:flex;gap:4px"><div style="width:70px"></div>';
   hrs.forEach(h=>html+=`<div class="hm-label" style="width:28px;text-align:center">${h}h</div>`);
@@ -761,6 +761,8 @@ function cohortCell(v){
   return `<td style="background:${bg};color:${fg}">${v.toFixed(1)}%</td>`;
 }
 function buildCohort(){
+  const body = document.getElementById('cohort-body');
+  if(!body) return;
   const rows=[
     {c:'Wk1 Mar',a:498,con:81,w1:3.2,w2:6.8,w3:9.4,w4:11.0,final:11.0,st:'Closed'},
     {c:'Wk2 Mar',a:512,con:78,w1:2.9,w2:6.1,w3:8.8,w4:10.2,final:10.2,st:'Closed'},
@@ -770,7 +772,7 @@ function buildCohort(){
     {c:'Wk1 Jun',a:286,con:54,w1:null,w2:null,w3:null,w4:null,final:null,st:'New'},
   ];
   const stColors={Closed:'b-ok',Open:'b-p2',Early:'b-warn',New:'b-muted'};
-  document.getElementById('cohort-body').innerHTML=rows.map(r=>`<tr>
+  body.innerHTML=rows.map(r=>`<tr>
     <td style="font-weight:500">${r.c}</td><td>${r.a}</td><td>${r.con}%</td>
     ${cohortCell(r.w1)}${cohortCell(r.w2)}${cohortCell(r.w3)}${cohortCell(r.w4)}${cohortCell(r.final)}
     <td>${badge(r.st,stColors[r.st]||'b-muted')}</td>
@@ -789,7 +791,7 @@ async function sendCopFull(){
   const el = document.getElementById(thinkingId);
   if(el){
     el.style.color=''; el.style.fontStyle='';
-    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\\n/g,'<br>')}`;
+    el.innerHTML = `<strong>RISCC —</strong> ${(result.answer||result.error||'No response').replace(/\n/g,'<br>')}`;
   }
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -799,8 +801,7 @@ function sortTbl(th){th.textContent=th.textContent.includes('▲')?th.textConten
 // ════════════════════════════════════════════════════════════════
 // LIVE DATA LOADERS — fetch from backend and patch the DOM
 // ════════════════════════════════════════════════════════════════
-const BD_NAMES = {}; // populated from live /api/bd-performance
-
+const BD_NAMES = {};
 
 // ── Revenue Intelligence ─────────────────────────────────────────
 async function loadRev(){
@@ -893,7 +894,7 @@ async function loadDaily(){
   }
 }
 
-// ── Lead Allocation (reuses bd-performance data) ──────────────────
+// ── Lead Allocation ───────────────────────────────────────────────
 async function loadAlloc(){
   const bds = await api('/bd-performance');
   if(!bds) return;
@@ -906,7 +907,7 @@ async function loadAlloc(){
   }).join('');
 }
 
-// ── Call Stats (reuses bd-performance data) ───────────────────────
+// ── Call Stats ─────────────────────────────────────────────────────
 async function loadCallStats(){
   const bds = await api('/bd-performance');
   if(!bds) return;
@@ -930,7 +931,7 @@ async function loadCallStats(){
   }
 }
 
-// ── Productivity (day-wise calls heatmap) ─────────────────────────
+// ── Productivity ──────────────────────────────────────────────────
 async function loadProd(){
   const d = await api('/bd-daily-calls');
   if(!d) return;
@@ -938,7 +939,6 @@ async function loadProd(){
   if(!wrap) return;
   const bds = Object.keys(d.by_bd);
   if(!bds.length){ wrap.innerHTML='<p style="padding:16px;color:var(--muted)">No call data yet — run OCRM sync first.</p>'; return; }
-  // Build a simple table: BD | day1 | day2 ... (last 14 days)
   const allDates = [...new Set(d.flat.map(r=>r.date.slice?r.date.slice(0,10):String(r.date).slice(0,10)))].sort().slice(-14);
   let html = '<table class="t"><thead><tr><th>BD</th>'+allDates.map(d=>`<th style="font-size:9px">${d.slice(5)}</th>`).join('')+'</tr></thead><tbody>';
   for(const bd of bds){
@@ -1004,7 +1004,6 @@ async function loadExec(){
   setVal('Stale (15d+)', fmtNum(d.leads.stale_15d_plus));
   setVal('Revenue at Risk', fmtL(d.revenue_at_risk));
 
-  // revenue trend chart
   const trend = await api('/revenue-trend');
   if(trend && charts.rev){
     charts.rev.data.labels = trend.labels.map(l=>new Date(l).toLocaleDateString('en-IN',{day:'numeric',month:'short'}));
@@ -1012,7 +1011,6 @@ async function loadExec(){
     charts.rev.data.datasets[1].data = trend.labels.map(()=>+(trend.daily_target/100000).toFixed(2));
     charts.rev.update();
   }
-  // gauge
   if(charts.gauge){
     const pct = d.revenue.pct_of_target;
     charts.gauge.data.datasets[0].data = [pct, Math.max(0,100-pct)];
@@ -1052,7 +1050,6 @@ async function loadBd(){
     </tr>`;
   }).join('');
 
-  // manipulation table
   const manip = await api('/manipulation');
   if(manip){
     const mtbody = document.querySelectorAll('#main-content table.t tbody')[1];
@@ -1092,7 +1089,6 @@ async function loadTl(){
     <td class="${coachCls(r.coaching_score)}">${r.coaching_score}/100</td>
   </tr>`).join('');
 }
-
 
 // ── Source Analysis ──────────────────────────────────────────────
 async function loadSource(){
@@ -1161,14 +1157,12 @@ async function loadLeakage(){
   setVal('Expired hot leads', fmtNum(d.expired_hot));
   setVal('Total Leakage est.', fmtL(d.total_leakage));
 
-  // mrow values (calculator card)
   const mrows = document.querySelectorAll('#main-content .mrow .mv');
   const vals = [d.leakage_breakdown.uncontacted, d.leakage_breakdown.single_touch, d.leakage_breakdown.stale, d.leakage_breakdown.ghosted, d.leakage_breakdown.expired_hot];
   mrows.forEach((el,i)=>{ if(vals[i]!==undefined) el.textContent = fmtL(vals[i]); });
   const totalEl = document.querySelector('#main-content .card div[style*="space-between"] span[style*="18px"]');
   if(totalEl) totalEl.textContent = fmtL(d.total_leakage);
 
-  // by-BD table (second table on page)
   const tables = document.querySelectorAll('#main-content table.t tbody');
   if(tables[0] && d.by_bd){
     tables[0].innerHTML = d.by_bd.slice(0,6).map(r=>{
@@ -1211,34 +1205,6 @@ Target: ${fmtCr(d.target)} · Gap: ${fmtL(d.gap_to_target)} · Required daily: $
   mrows.forEach((el,i)=>{ if(vals[i]!==undefined) el.textContent = vals[i]; });
 }
 
-// ── Collections ──────────────────────────────────────────────────
-async function loadCollectionsPage(){
-  const d = await api('/collections');
-  if(!d) return;
-  const setVal=(label,val)=>{
-    document.querySelectorAll('.kcard').forEach(c=>{
-      const lbl=c.querySelector('.kcard-label');
-      if(lbl && lbl.textContent.trim()===label){ c.querySelector('.kcard-val').textContent=val; }
-    });
-  };
-  setVal('Total Fees Due', fmtCr(d.total_fees_due));
-  setVal('Total Collected', fmtCr(d.total_collected));
-  setVal('Collection Rate', d.collection_rate_pct+'%');
-  setVal('Overdue >7 days', fmtL(d.overdue_7days));
-  setVal('Overdue >30 days', fmtL(d.overdue_30days));
-  setVal('EMI Default Rate', d.emi_default_rate_pct+'%');
-
-  const tbody = document.querySelectorAll('#main-content table.t tbody')[0];
-  if(tbody && d.overdue_table){
-    const statusCls = s=>({'Overdue':'b-bad','Defaulted':'b-bad','Partial':'b-warn','Paid':'b-ok'}[s]||'b-muted');
-    tbody.innerHTML = d.overdue_table.slice(0,10).map(r=>`<tr>
-      <td>${r.collection_id}</td><td>${BD_NAMES[r.bd_id]||r.bd_id}</td><td>₹${fmtNum(r.amount_due)}</td>
-      <td>₹${fmtNum(r.amount_collected)}</td><td>₹${fmtNum(r.amount_due-r.amount_collected)}</td>
-      <td class="kd">${r.days_overdue}d</td><td>${badge(r.status,statusCls(r.status))}</td>
-    </tr>`).join('');
-  }
-}
-
 // ── Conversion Funnel ────────────────────────────────────────────
 async function loadFunnel(){
   const d = await api('/funnel');
@@ -1266,7 +1232,7 @@ async function loadFunnel(){
   });
 }
 
-// ── NEW: Day-wise calls per BD ───────────────────────────────────
+// ── Day-wise calls per BD ─────────────────────────────────────────
 async function loadDailyCalls(){
   const bdSel = document.getElementById('dwc-bd');
   const daysSel = document.getElementById('dwc-days');
@@ -1297,7 +1263,6 @@ async function loadDailyCalls(){
     }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No call data for this filter</td></tr>`;
   }
 
-  // chart: connected calls per day, one line per BD
   const allDates = new Set();
   Object.values(d.by_bd).forEach(arr=>arr.forEach(x=>allDates.add(x.date)));
   const labels = Array.from(allDates).sort();
@@ -1321,7 +1286,7 @@ async function loadDailyCalls(){
   }
 }
 
-// ── NEW: Uncalled leads — buckets + day-wise grid ────────────────
+// ── Uncalled leads — buckets + day-wise grid ─────────────────────
 async function loadUncalled(){
   const bucketSel = document.getElementById('uc-bucket');
   const bdSel = document.getElementById('uc-bd');
@@ -1336,7 +1301,6 @@ async function loadUncalled(){
   const d = await api(`/uncalled-leads?${params.toString()}`);
   if(!d) return;
 
-  // bucket KPI cards
   const bucketsEl = document.getElementById('uncalled-buckets');
   if(bucketsEl && d.buckets){
     const colorFor = b=>({'0-1d':'g','2-3d':'g','4-7d':'y','8-15d':'y','15+d':'r'}[b]||'g');
@@ -1349,7 +1313,6 @@ async function loadUncalled(){
       </div>`).join('');
   }
 
-  // by-BD table
   const bybd = document.getElementById('uc-bybd-table')?.querySelector('tbody');
   if(bybd && d.by_bd){
     const order = {'0-1d':0,'2-3d':1,'4-7d':2,'8-15d':3,'15+d':4};
@@ -1360,7 +1323,6 @@ async function loadUncalled(){
     }).join('');
   }
 
-  // detail table with daywise grid
   const detailEl = document.getElementById('uc-detail-table')?.querySelector('tbody');
   if(detailEl){
     if(!d.detail || !d.detail.length){
@@ -1383,7 +1345,7 @@ async function loadUncalled(){
   }
 }
 
-// ── NEW: Settings / API Keys ─────────────────────────────────────
+// ── Settings / API Keys ───────────────────────────────────────────
 function saveAdminToken(){
   const val = document.getElementById('admin-token-input')?.value || '';
   if(val) localStorage.setItem('riscc_admin_token', val);
@@ -1440,14 +1402,12 @@ async function loadSettings(){
     </div>
   `).join('');
 
-  // wire save buttons
   container.querySelectorAll('.card').forEach((card, i) => {
     const s = settings[i];
     const saveBtn = card.querySelector('.btn-primary');
     if(saveBtn) saveBtn.onclick = () => saveConnector(s.connector_key);
   });
 
-  // sync buttons
   const syncContainer = document.getElementById('sync-buttons');
   if(syncContainer){
     const syncable = settings.filter(s=>['ocrm','sales_api','gsheets'].includes(s.connector_key));
