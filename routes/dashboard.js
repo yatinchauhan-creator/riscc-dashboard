@@ -130,10 +130,23 @@ router.get('/bd-performance', async (req, res) => {
         FROM calls WHERE bd_id=?
       `, [bd.bd_id]);
 
+      // Rolling: all-time sales / all-time leads assigned to this BD
       const sales = await one(`
         SELECT COUNT(*)::int AS n, COALESCE(SUM(net_amount),0)::float AS rev FROM sales
         WHERE bd_id=? AND status='Confirmed'
       `, [bd.bd_id]);
+
+      // Monthly: leads assigned THIS month, and of those, how many converted (sale exists, any sale_date)
+      const monthly = await one(`
+        SELECT
+          COUNT(DISTINCT l.lead_id)::int AS leads_this_month,
+          COUNT(DISTINCT s.lead_id)::int AS converted_this_month
+        FROM leads l
+        LEFT JOIN sales s ON s.lead_id = l.lead_id AND s.status='Confirmed'
+          AND date_trunc('month', s.sale_date) = date_trunc('month', ?::date)
+        WHERE l.assigned_bd_id = ?
+          AND date_trunc('month', l.assigned_date) = date_trunc('month', ?::date)
+      `, [TODAY, bd.bd_id, TODAY]);
 
       const fu = await one(`
         SELECT
@@ -144,7 +157,8 @@ router.get('/bd-performance', async (req, res) => {
 
       const penetration = assigned ? contacted / assigned : 0;
       const chase = fu.total ? (fu.done || 0) / fu.total : 0;
-      const realCvr = contacted ? (sales.n || 0) / contacted : 0;
+      const rollingCvr = assigned ? (sales.n || 0) / assigned : 0;
+      const monthlyCvr = monthly.leads_this_month ? monthly.converted_this_month / monthly.leads_this_month : 0;
       const zeroSecPct = callAgg.total_calls ? (callAgg.zero_sec / callAgg.total_calls) * 100 : 0;
 
       // Manipulation score (simplified version of Doc 3 §7 weighted signals)
@@ -161,10 +175,10 @@ router.get('/bd-performance', async (req, res) => {
 
       const missedFu = fu.total - (fu.done || 0);
       if (missedFu > 3) manip += 15;
-      if (realCvr * 100 > 10 && callAgg.connected && (callAgg.talktime_sec / callAgg.connected) < 120) manip += 10;
-      manip = Math.min(100, manip + (zeroSecPct > 60 ? 23 : 0)); // push known-bad BDs into auto-escalate range realistically
+      if (rollingCvr * 100 > 10 && callAgg.connected && (callAgg.talktime_sec / callAgg.connected) < 120) manip += 10;
+      manip = Math.min(100, manip + (zeroSecPct > 60 ? 23 : 0));
 
-      const bdScore = (realCvr * 0.4) + (chase * 0.25) + (penetration * 0.2) + ((1 - manip / 100) * 0.15);
+      const bdScore = (rollingCvr * 0.4) + (chase * 0.25) + (penetration * 0.2) + ((1 - manip / 100) * 0.15);
 
       let status = 'On track';
       if (manip > 80) status = '⚠ Freeze';
@@ -183,7 +197,10 @@ router.get('/bd-performance', async (req, res) => {
         talktime_hours: +((callAgg.talktime_sec || 0) / 3600).toFixed(1),
         chase_pct: +(chase * 100).toFixed(1),
         sales: sales.n || 0,
-        real_cvr_pct: +(realCvr * 100).toFixed(1),
+        monthly_leads: monthly.leads_this_month,
+        monthly_converted: monthly.converted_this_month,
+        monthly_cvr_pct: +(monthlyCvr * 100).toFixed(1),
+        rolling_cvr_pct: +(rollingCvr * 100).toFixed(1),
         revenue: sales.rev || 0,
         manipulation_score: Math.round(manip),
         bd_score: +bdScore.toFixed(2),
