@@ -672,6 +672,22 @@ const PAGES={
     <strong>bd_daily_calls</strong> — Day-wise call activity per BD (total, connected, zero-sec, talktime)<br>
     <strong>uncalled_leads</strong> — Per-lead age buckets and 15-day daywise flags
   </div>
+</div>`,
+
+'settings':`
+<div class="sl">Connector settings · API keys are stored server-side only, never sent back in full</div>
+<div class="card">
+  <div class="card-hdr"><div class="card-title">Admin Token</div><div class="card-sub">Only needed if ADMIN_TOKEN is set on the server</div></div>
+  <div class="filter-group">
+    <input type="password" id="admin-token-input" placeholder="Paste admin token (optional)" style="flex:1;font-size:12px;padding:7px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg)"/>
+    <button class="btn-sm btn-primary" onclick="saveAdminToken()">Save in this browser</button>
+  </div>
+</div>
+<div id="settings-cards"><div class="card" style="text-align:center;color:var(--muted);padding:24px">Loading connectors…</div></div>
+<div class="card">
+  <div class="card-hdr"><div class="card-title">Sync Now</div></div>
+  <div id="sync-buttons" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
+  <div id="sync-result" style="font-size:12px;color:var(--muted)"></div>
 </div>`
 };
 
