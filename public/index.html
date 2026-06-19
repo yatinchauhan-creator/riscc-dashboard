@@ -484,10 +484,10 @@ const PAGES={
 'bd':`
 <div class="sl">BD Performance · refreshed every 15 min</div>
 <div class="card">
-  <div class="card-hdr"><div class="card-title">BD Performance Table</div><div class="card-actions">${btn('Export CSV')}</div></div>
+  <div class="card-hdr"><div class="card-title">BD Performance Table</div><div class="card-actions"><button class="btn-sm" onclick="exportBdCsv()">Export CSV</button></div></div>
   <div class="tw"><table class="t" id="bd-table">
-    <thead><tr><th>BD</th><th>TL</th><th>Assigned</th><th>Penetration</th><th>Connected</th><th>Talktime</th><th>Chase %</th><th>Sales</th><th>Real CVR %</th><th>Revenue</th><th>Manip.</th><th>BD Score</th><th>Status</th></tr></thead>
-    <tbody><tr><td colspan="13" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
+    <thead><tr><th>BD</th><th>TL</th><th>Assigned</th><th>Penetration</th><th>Connected</th><th>Talktime</th><th>Chase %</th><th>Sales</th><th>Monthly CVR %</th><th>Rolling CVR %</th><th>Revenue</th><th>Manip.</th><th>BD Score</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody><tr><td colspan="15" style="text-align:center;padding:16px;color:var(--muted)">Loading…</td></tr></tbody>
   </table></div>
 </div>
 <div class="g2">
@@ -889,10 +889,10 @@ async function loadDaily(){
   const stars = document.getElementById('daily-stars');
   if(stars && bd && bd.length) {
     const top = [...bd].sort((a,b)=>b.revenue-a.revenue)[0];
-    const topCvr = [...bd].sort((a,b)=>b.real_cvr_pct-a.real_cvr_pct)[0];
+    const topCvr = [...bd].sort((a,b)=>b.rolling_cvr_pct-a.rolling_cvr_pct)[0];
     stars.innerHTML = [
       ['Top BD — revenue', top.name+' · '+fmtCr(top.revenue)],
-      ['Top BD — real CVR', topCvr.name+' · '+topCvr.real_cvr_pct+'%'],
+      ['Top BD — real CVR', topCvr.name+' · '+topCvr.rolling_cvr_pct+'%'],
     ].map(([l,v])=>`<div class="mrow"><span class="ml">${l}</span><span style="font-size:12px;font-weight:600;color:var(--text)">${v}</span></div>`).join('');
   }
   const flags = document.getElementById('daily-flags');
@@ -919,7 +919,7 @@ async function loadAlloc(){
   tb.innerHTML = [...bds].sort((a,b)=>b.bd_score-a.bd_score).map(b=>{
     const sc = b.bd_score;
     const cls = sc>=0.75?'ku':sc>=0.5?'kw':'kd';
-    return `<tr><td style="font-weight:500">${b.name}</td><td>${b.tl}</td><td>${b.real_cvr_pct}%</td><td>${b.chase_pct}%</td><td>${b.penetration_pct}%</td><td class="${b.manipulation_score>60?'kd':b.manipulation_score>20?'kw':'ku'}">${b.manipulation_score}</td><td class="${cls}" style="font-weight:700">${sc}</td><td><span class="badge ${b.status==='Star'?'b-ok':b.status==='Watch'||b.status==='Reduce'?'b-warn':'b-bad'}">${b.status}</span></td></tr>`;
+    return `<tr><td style="font-weight:500">${b.name}</td><td>${b.tl}</td><td>${b.rolling_cvr_pct}%</td><td>${b.chase_pct}%</td><td>${b.penetration_pct}%</td><td class="${b.manipulation_score>60?'kd':b.manipulation_score>20?'kw':'ku'}">${b.manipulation_score}</td><td class="${cls}" style="font-weight:700">${sc}</td><td><span class="badge ${b.status==='Star'?'b-ok':b.status==='Watch'||b.status==='Reduce'?'b-warn':'b-bad'}">${b.status}</span></td></tr>`;
   }).join('');
 }
 
@@ -1039,10 +1039,12 @@ async function loadExec(){
 }
 
 // ── BD Performance ────────────────────────────────────────────────
+let lastBdData = [];
 async function loadBd(){
   const rows = await api('/bd-performance');
   if(!rows) return;
-  rows.sort((a,b)=>b.real_cvr_pct - a.real_cvr_pct);
+  rows.sort((a,b)=>b.rolling_cvr_pct - a.rolling_cvr_pct);
+  lastBdData = rows;
   const tbody = document.querySelector('#main-content table.t tbody');
   if(!tbody) return;
   const statusCls = s=>({'Star':'b-ok','On track':'b-muted','Watch':'b-warn','Reduce':'b-bad','⚠ Freeze':'b-bad'}[s]||'b-muted');
@@ -1050,14 +1052,16 @@ async function loadBd(){
   tbody.innerHTML = rows.map(r=>{
     const scoreClr = r.bd_score>0.7?'#16A34A':r.bd_score>0.5?'#D97706':'#C0392B';
     return `<tr>
-      <td><a href="#" style="color:var(--primary);text-decoration:none;font-weight:500" onclick="event.preventDefault()">${r.name}</a><br><span style="font-size:10px;color:var(--muted)">TL: ${r.tl}</span></td>
+      <td><a href="#" style="color:var(--primary);text-decoration:none;font-weight:500" onclick="event.preventDefault()">${r.name}</a></td>
+      <td style="font-size:11px;color:var(--muted)">${r.tl}</td>
       <td>${fmtNum(r.assigned)}</td>
       <td class="${numCls(r.penetration_pct,80,50)}">${r.penetration_pct}%</td>
       <td>${fmtNum(r.connected_calls)}</td>
       <td>${r.talktime_hours}h</td>
       <td class="${numCls(r.chase_pct,70,45)}">${r.chase_pct}%</td>
       <td>${r.sales}</td>
-      <td class="${numCls(r.real_cvr_pct,10,5)}" style="font-weight:600">${r.real_cvr_pct}%</td>
+      <td class="${numCls(r.monthly_cvr_pct,10,5)}" style="font-weight:600" title="${r.monthly_converted}/${r.monthly_leads} leads assigned this month">${r.monthly_cvr_pct}%</td>
+      <td class="${numCls(r.rolling_cvr_pct,10,5)}" style="font-weight:600" title="${r.sales}/${r.assigned} all-time">${r.rolling_cvr_pct}%</td>
       <td style="font-weight:500">${fmtL(r.revenue)}</td>
       <td class="${r.manipulation_score>60?'kd':r.manipulation_score>30?'kw':'ku'}" style="font-weight:600">${r.manipulation_score}</td>
       <td>${sbar(Math.round(r.bd_score*100),scoreClr)} <span style="font-size:11px">${r.bd_score}</span></td>
@@ -1079,6 +1083,25 @@ async function loadBd(){
       </tr>`).join('');
     }
   }
+}
+
+function exportBdCsv(){
+  if(!lastBdData.length){ alert('No data loaded yet'); return; }
+  const headers = ['BD','TL','Assigned','Penetration %','Connected','Talktime (h)','Chase %','Sales','Monthly CVR %','Rolling CVR %','Revenue','Manipulation Score','BD Score','Status'];
+  const rows = lastBdData.map(r=>[r.name,r.tl,r.assigned,r.penetration_pct,r.connected_calls,r.talktime_hours,r.chase_pct,r.sales,r.monthly_cvr_pct,r.rolling_cvr_pct,r.revenue,r.manipulation_score,r.bd_score,r.status]);
+  const csv = [headers, ...rows].map(row=>row.map(v=>{
+    const s = String(v??'');
+    return s.includes(',')||s.includes('"') ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bd-performance-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Team Leader Performance ──────────────────────────────────────
